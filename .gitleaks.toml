@@ -1,0 +1,15 @@
+# Config de gitleaks: usa los detectores por defecto + una regla para la key de 21st.dev
+[extend]
+useDefault = true
+
+[[rules]]
+id = "twentyfirst-api-key"
+description = "21st.dev Magic MCP API key"
+regex = '''21st_sk_[a-f0-9]{64}'''
+keywords = ["21st_sk_"]
+
+[allowlist]
+description = "Archivos de ejemplo y docs no llevan secretos reales"
+paths = [
+  '''\.env\.example$''',
+]

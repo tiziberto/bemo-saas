@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bemo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bemo}
+      POSTGRES_DB: ${POSTGRES_DB:-bemo}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bemo} -d ${POSTGRES_DB:-bemo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bemo}:${POSTGRES_PASSWORD:-bemo}@db:5432/${POSTGRES_DB:-bemo}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./apps/api:/app
+      - api-node-modules:/app/node_modules
+    # Migraciones + seed corren solos antes de levantar la API (solo en dev)
+    command: sh -c "npm run migrate:up && npm run seed && npm run start:dev"
+
+  web:
+    build: ./apps/web
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    volumes:
+      - ./apps/web:/app
+      - web-node-modules:/app/node_modules
+    command: npm run dev -- --host
+
+volumes:
+  db-data:
+  api-node-modules:
+  web-node-modules:
