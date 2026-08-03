@@ -4,6 +4,7 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
@@ -11,6 +12,8 @@ import { Request, Response } from 'express';
 // Toda excepción sale con la misma forma + un `code` estable para el front.
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
+  private readonly logger = new Logger('http');
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<Response>();
@@ -40,6 +43,17 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     } else if (exception instanceof Error) {
       detail =
         process.env.NODE_ENV === 'production' ? undefined : exception.message;
+    }
+
+    // Sin esto, un 500 se serializaba al cliente y no quedaba registrado en
+    // ningún lado: los errores del servidor eran invisibles.
+    if (status >= 500) {
+      this.logger.error(
+        `${req.method} ${req.originalUrl} → ${status} ${code}`,
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+    } else if (status === 401 || status === 403) {
+      this.logger.warn(`${req.method} ${req.originalUrl} → ${status} ${code}`);
     }
 
     res

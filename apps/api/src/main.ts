@@ -1,37 +1,25 @@
 import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { ProblemDetailsFilter } from './common/problem-details.filter';
+import { configureApp, setupDocs } from './bootstrap';
+import { loadEnv } from './config/env';
 
 async function bootstrap() {
+  // Se valida el entorno ANTES de levantar nada: si falta un secreto, no arranca.
+  const env = loadEnv();
+
   const app = await NestFactory.create(AppModule);
+  configureApp(app);
+  const docs = setupDocs(app);
 
-  // Todas las rutas bajo /v1
-  app.setGlobalPrefix('v1');
-
-  app.enableCors({
-    origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173',
-    credentials: true,
-  });
-
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-
-  // Contrato de error único (RFC 9457 — application/problem+json)
-  app.useGlobalFilters(new ProblemDetailsFilter());
-
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('bemo API')
-    .setDescription('CRM para consultorios — API v1')
-    .setVersion('1.0')
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('v1/docs', app, document);
-
-  const port = Number(process.env.API_PORT ?? 3000);
-  await app.listen(port, '0.0.0.0');
-  console.log(`[api] escuchando en http://0.0.0.0:${port}/v1 (docs en /v1/docs)`);
+  await app.listen(env.port, '0.0.0.0');
+  new Logger('bootstrap').log(
+    `escuchando en http://0.0.0.0:${env.port}/v1${docs ? ' (docs en /v1/docs)' : ''} · env=${env.nodeEnv}`,
+  );
 }
 
-void bootstrap();
+void bootstrap().catch((err) => {
+  new Logger('bootstrap').error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+});

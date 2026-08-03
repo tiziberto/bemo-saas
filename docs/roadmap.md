@@ -4,6 +4,9 @@
 > clínica diga "sí, lo pago". Todo lo demás se subordina a eso.
 >
 > Documentos relacionados: [spec-mvp.md](./spec-mvp.md) · [office-hours-diagnostico.md](./office-hours-diagnostico.md) · [../DESIGN.md](../DESIGN.md)
+>
+> **Etapas 5 a 8 en detalle:** [plan-desarrollo.md](./plan-desarrollo.md) (qué falta construir, fase por fase)
+> y [pricing.md](./pricing.md) (planes y política de precios, ya definidos).
 
 ## Cómo leer este roadmap
 

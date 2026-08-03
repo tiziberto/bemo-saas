@@ -1,0 +1,41 @@
+# API en producción. El Dockerfile de dev corre `nest start --watch` con las
+# devDependencies adentro: sirve para trabajar, no para desplegar.
+#
+# Acá: build en una etapa, runtime con sólo las dependencias de producción,
+# usuario sin privilegios y healthcheck real.
+
+# --- build ---
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY tsconfig*.json nest-cli.json ./
+COPY src ./src
+RUN npm run build
+
+# --- deps de producción, aisladas ---
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# --- runtime ---
+FROM node:20-alpine AS runtime
+ENV NODE_ENV=production
+WORKDIR /app
+
+# `node` ya existe en la imagen oficial (uid 1000) y no es root.
+COPY --from=deps  --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --chown=node:node package.json ./
+# Las migraciones viajan con la imagen: se corren al desplegar, no desde una laptop.
+COPY --chown=node:node migrations ./migrations
+COPY --chown=node:node scripts ./scripts
+
+USER node
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.API_PORT||3000)+'/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "dist/main.js"]

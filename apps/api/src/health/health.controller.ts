@@ -1,7 +1,7 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Pool } from 'pg';
-import { PG_POOL } from '../database/database.module';
+import { PG_POOL } from '../database/database.constants';
 
 @ApiTags('health')
 @Controller('health')

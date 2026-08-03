@@ -19,7 +19,12 @@ services:
     build: ./apps/api
     env_file: .env
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-bemo}:${POSTGRES_PASSWORD:-bemo}@db:5432/${POSTGRES_DB:-bemo}
+      # Runtime: rol restringido sujeto a RLS
+      DATABASE_URL: postgres://bemo_app:${BEMO_APP_PASSWORD:-bemo_app}@db:5432/${POSTGRES_DB:-bemo}
+      # Migraciones: owner (bypass RLS)
+      DATABASE_URL_MIGRATE: postgres://${POSTGRES_USER:-bemo}:${POSTGRES_PASSWORD:-bemo}@db:5432/${POSTGRES_DB:-bemo}
+      # La migración crea el rol de la app con esta contraseña.
+      BEMO_APP_PASSWORD: ${BEMO_APP_PASSWORD:-bemo_app}
     ports:
       - "3000:3000"
     depends_on:
@@ -28,8 +33,10 @@ services:
     volumes:
       - ./apps/api:/app
       - api-node-modules:/app/node_modules
-    # Migraciones + seed corren solos antes de levantar la API (solo en dev)
-    command: sh -c "npm run migrate:up && npm run seed && npm run start:dev"
+      # Los estudios subidos viven en un volumen, no en el bind del código.
+      - api-storage:/app/storage
+    # Migraciones (como owner) + seed corren solos antes de levantar la API (dev)
+    command: sh -c "DATABASE_URL=\"$$DATABASE_URL_MIGRATE\" npm run migrate:up && npm run seed && npm run start:dev"
 
   web:
     build: ./apps/web
@@ -45,4 +52,5 @@ services:
 volumes:
   db-data:
   api-node-modules:
+  api-storage:
   web-node-modules:

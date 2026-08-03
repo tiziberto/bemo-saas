@@ -1,0 +1,85 @@
+# Despliegue. Se usa junto al .env de producción:
+#   docker compose -f compose.prod.yaml up -d --build
+#
+# Diferencias con el compose de desarrollo:
+# - Imágenes de producción (build compilado, sin devDependencies, usuario `node`).
+# - La base NO publica puerto al host: sólo la ve la red interna.
+# - Las migraciones corren en un servicio aparte que termina, no en el arranque de la API.
+# - Todo con healthcheck y restart automático.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?falta POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?falta POSTGRES_DB}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Corre las migraciones como owner y termina. La API no arranca hasta que este
+  # servicio salió con éxito.
+  migrate:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.prod
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      BEMO_APP_PASSWORD: ${BEMO_APP_PASSWORD:?falta BEMO_APP_PASSWORD}
+    # Migra y, después, reemplaza la contraseña de desarrollo del rol de la app.
+    command:
+      - sh
+      - -c
+      - >-
+        npx node-pg-migrate up -m migrations --no-check-order &&
+        node scripts/set-app-password.js
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_PORT: 3000
+      # Rol restringido, sujeto a RLS. NUNCA el owner.
+      DATABASE_URL: postgres://bemo_app:${BEMO_APP_PASSWORD:?falta BEMO_APP_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET}
+      WEB_ORIGIN: ${WEB_ORIGIN:?falta WEB_ORIGIN}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-120}
+      AUTH_THROTTLE_LIMIT: ${AUTH_THROTTLE_LIMIT:-10}
+      STORAGE_DIR: /data/storage
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
+    volumes:
+      # Estudios clínicos: volumen propio, entra en el plan de backup.
+      - api-storage:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    ports:
+      - '${WEB_PORT:-80}:80'
+    depends_on:
+      - api
+
+volumes:
+  db-data:
+  api-storage:

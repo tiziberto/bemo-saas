@@ -1,27 +1,64 @@
-# secrets / env
-.env
-.env.local
-.env.*.local
+# ==============================================================================
+# Nada de lo que está acá abajo llega al repositorio.
+# Regla: si tiene una credencial, un dato de paciente, o lo genera una máquina,
+# no se versiona.
+# ==============================================================================
 
-# deps
+# --- Secretos y entorno ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+id_rsa*
+
+# --- Dependencias ---
 node_modules/
 **/node_modules/
 .pnp
 .pnp.js
 
-# build
-.next/
+# --- Build ---
 dist/
 **/dist/
 build/
 out/
+.next/
+.turbo/
+.cache/
+*.tsbuildinfo
 
-# logs
+# --- Datos sensibles generados en local (PHI) ---
+# Backups de la base y estudios clínicos subidos en desarrollo.
+backups/
+*.dump
+*.sql.gz
+storage/
+**/storage/
+
+# --- Tests y cobertura ---
+coverage/
+.nyc_output/
+junit.xml
+
+# --- Logs ---
 *.log
 npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
 
-# misc
-.DS_Store
+# --- Config local de herramientas ---
+.claude/settings.local.json
+.gstack/
 .vscode/
 .idea/
-coverage/
+*.swp
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db
+desktop.ini
