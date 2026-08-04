@@ -99,3 +99,4 @@ base de datos), `POSTGRES_*` y `WEB_ORIGIN`.
 - Secretos en `.env` (gitignoreado). Nunca commitear claves.
 - `gitleaks` corre en pre-commit y CI (ver `.githooks/pre-commit`).
 - Activá el hook local una vez: `git config core.hooksPath .githooks`.
+# bemo-saas
