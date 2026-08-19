@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MOD_K } from '../lib/platform';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
@@ -338,7 +339,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey));
 
     <p class="muted text-xs mt-lg no-print">
       Atajos: <kbd>←</kbd> <kbd>→</kbd> cambiar de día · <kbd>T</kbd> hoy · <kbd>N</kbd> nuevo turno ·
-      <kbd>⌘K</kbd> buscar
+      <kbd>{{ MOD_K }}</kbd> buscar
     </p>
 
     <BookingWizard

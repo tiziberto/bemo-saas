@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -24,6 +25,11 @@ export class CreateAppointmentDto {
   @IsISO8601() startsAt!: string;
   @IsOptional() @IsInt() @Min(5) durationMinutes?: number;
   @IsOptional() @IsString() reason?: string;
+  /**
+   * Segunda confirmación: se manda sólo después de que el usuario vio el choque y
+   * aceptó igual. Sin esto el turno superpuesto se rechaza, como siempre.
+   */
+  @IsOptional() @IsBoolean() allowOverbook?: boolean;
   @ValidateNested() @Type(() => PersonInput) person!: PersonInput;
 }
 

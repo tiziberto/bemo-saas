@@ -7,6 +7,8 @@ import { CreateAppointmentDto, PersonInput } from './dto';
 function mapConflict(err: unknown): unknown {
   const e = err as { code?: string; constraint?: string };
   if (e?.code === '23P01') {
+    // Los dos códigos significan "ese lugar ya está tomado": son justamente los
+    // que el frontend puede reintentar como sobreturno tras una segunda confirmación.
     if (e.constraint === 'no_room_overlap') {
       return new ConflictException({
         message: 'La sala ya está ocupada en esa franja',
@@ -89,9 +91,9 @@ export class AppointmentsService {
           );
           const r = await c.query(
             `INSERT INTO appointments
-               (clinic_id, professional_id, room_id, person_id, starts_at, ends_at, reason, created_by_user_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-             RETURNING id, professional_id, room_id, person_id, starts_at, ends_at, status, reason`,
+               (clinic_id, professional_id, room_id, person_id, starts_at, ends_at, reason, created_by_user_id, is_overbook)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             RETURNING id, professional_id, room_id, person_id, starts_at, ends_at, status, reason, is_overbook`,
             [
               user.clinicId,
               dto.professionalId,
@@ -101,6 +103,7 @@ export class AppointmentsService {
               endsAt,
               dto.reason ?? null,
               user.userId,
+              dto.allowOverbook === true,
             ],
           );
           return r.rows[0];
@@ -111,21 +114,27 @@ export class AppointmentsService {
     }
   }
 
-  list(user: AuthUser, professionalId?: string, date?: string) {
+  /**
+   * `limit` existe para las preguntas de tipo "¿hay al menos uno?": sin él, saber si la
+   * clínica tiene algún turno obligaba a traerlos todos. `LIMIT NULL` en Postgres es
+   * "sin límite", así que omitirlo mantiene el comportamiento anterior.
+   */
+  list(user: AuthUser, professionalId?: string, date?: string, limit?: number) {
     return this.db.withTenant(
       { clinicId: user.clinicId, userId: user.userId },
       async (c) => {
         const r = await c.query(
           `SELECT a.id, a.starts_at, a.ends_at, a.status, a.reason,
-                  a.professional_id, a.room_id,
+                  a.professional_id, a.room_id, a.person_id,
                   p.first_name, p.last_name, p.dni, p.phone
              FROM appointments a
              JOIN persons p ON p.id = a.person_id
             WHERE ($1::uuid IS NULL OR a.professional_id = $1)
               AND ($2::date IS NULL OR
                    (a.starts_at AT TIME ZONE (SELECT timezone FROM clinics WHERE id = app_current_clinic()))::date = $2::date)
-            ORDER BY a.starts_at`,
-          [professionalId ?? null, date ?? null],
+            ORDER BY a.starts_at
+            LIMIT $3::int`,
+          [professionalId ?? null, date ?? null, limit ?? null],
         );
         return r.rows;
       },

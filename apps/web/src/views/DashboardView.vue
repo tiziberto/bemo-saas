@@ -60,6 +60,15 @@ const stats = computed(() => ({
   cancelled: mine.value.filter((a) => a.status === 'cancelled').length,
 }));
 
+/**
+ * ¿La clínica tiene algún turno, en cualquier fecha?
+ *
+ * El checklist miraba `appointments`, que se carga con `date: today`. Agendar para
+ * mañana —lo normal— dejaba el ítem sin tildar para siempre. Se resuelve con una
+ * consulta aparte y acotada a 1 fila, que además sólo se hace si hoy no hay ninguno.
+ */
+const hayAlgunTurno = ref(false);
+
 const nowMin = minutesOfDay(new Date().toISOString());
 const upcoming = computed(() =>
   active.value
@@ -95,7 +104,7 @@ const setup = computed(() => [
     cta: 'Cargar horarios',
   },
   {
-    done: appointments.value.length > 0,
+    done: hayAlgunTurno.value,
     title: 'Agendar el primer turno',
     desc: 'Probá el circuito completo con un paciente real.',
     to: '/agenda',
@@ -120,6 +129,14 @@ async function load() {
     professionals.value = profs;
     rooms.value = rms;
     blocks.value = blks;
+
+    // Con un turno hoy ya está respondido; si no, se pregunta con una sola fila.
+    hayAlgunTurno.value =
+      appts.length > 0 ||
+      (auth.isAdmin &&
+        (await api<Appointment[]>('/appointments' + qs({ limit: 1 }))
+          .then((r) => r.length > 0)
+          .catch(() => false)));
 
     const lists = await Promise.all(
       profs.map((p) =>

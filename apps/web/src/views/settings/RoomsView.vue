@@ -44,7 +44,7 @@ onMounted(load);
 </script>
 
 <template>
-  <AppShell width="narrow">
+  <AppShell width="wide">
     <PageHeader
       title="Consultorios"
       subtitle="Las salas donde se atiende. bemo impide que dos turnos ocupen la misma sala al mismo tiempo."
@@ -82,7 +82,7 @@ onMounted(load);
       />
 
       <div class="card-foot">
-        <form class="row tight" @submit.prevent="create">
+        <form class="row tight form-narrow" @submit.prevent="create">
           <input v-model="name" required placeholder="Nombre del consultorio" style="flex:1;min-width:180px" />
           <button class="btn sm" :disabled="saving || !name.trim()">
             <UiIcon name="plus" size="15" /> Agregar

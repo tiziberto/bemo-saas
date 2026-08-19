@@ -108,6 +108,8 @@ export interface BookInput {
   durationMinutes?: number;
   roomId?: string;
   reason?: string;
+  /** Segunda confirmación del sobreturno: sin esto, el turno superpuesto se rechaza. */
+  allowOverbook?: boolean;
   dni?: string;
   firstName?: string;
   lastName?: string;
@@ -123,6 +125,7 @@ export function bookRequest(app: INestApplication, actor: Session, input: BookIn
       durationMinutes: input.durationMinutes ?? 30,
       roomId: input.roomId,
       reason: input.reason,
+      allowOverbook: input.allowOverbook,
       person: {
         dni: input.dni ?? uniqueDni(),
         firstName: input.firstName ?? 'Paciente',

@@ -72,6 +72,58 @@ describe('Agenda: huecos, choques y concurrencia', () => {
     expect(res.body.code).toBe('PROFESSIONAL_SLOT_TAKEN');
   });
 
+  // ── Sobreturno ────────────────────────────────────────────────────────────
+  // El choque accidental tiene que seguir siendo imposible; el deliberado, posible
+  // pero explícito. Los tres tests de abajo cubren esa frontera.
+
+  it('con allowOverbook el turno superpuesto SÍ entra, y queda marcado', async () => {
+    const date = futureDate(70);
+    await book(app, admin, {
+      professionalId: profA.userId,
+      startsAt: atArgentina(date, '10:00'),
+      durationMinutes: 30,
+    });
+    const res = await bookRequest(app, admin, {
+      professionalId: profA.userId,
+      startsAt: atArgentina(date, '10:15'),
+      durationMinutes: 30,
+      allowOverbook: true,
+    }).expect(201);
+    expect(res.body.is_overbook).toBe(true);
+  });
+
+  it('un sobreturno NO habilita a que otro turno normal se superponga', async () => {
+    const date = futureDate(71);
+    await book(app, admin, {
+      professionalId: profA.userId,
+      startsAt: atArgentina(date, '09:00'),
+      durationMinutes: 30,
+    });
+    await bookRequest(app, admin, {
+      professionalId: profA.userId,
+      startsAt: atArgentina(date, '09:00'),
+      durationMinutes: 30,
+      allowOverbook: true,
+    }).expect(201);
+    // El tercero, sin pedirlo, se sigue rechazando: la puerta no quedó abierta.
+    const res = await bookRequest(app, admin, {
+      professionalId: profA.userId,
+      startsAt: atArgentina(date, '09:00'),
+      durationMinutes: 30,
+    }).expect(409);
+    expect(res.body.code).toBe('PROFESSIONAL_SLOT_TAKEN');
+  });
+
+  it('sin allowOverbook el turno nace como turno normal', async () => {
+    const date = futureDate(72);
+    const res = await bookRequest(app, admin, {
+      professionalId: profA.userId,
+      startsAt: atArgentina(date, '16:00'),
+      durationMinutes: 30,
+    }).expect(201);
+    expect(res.body.is_overbook).toBe(false);
+  });
+
   it('dos profesionales distintos en la MISMA sala y horario → 409 de sala', async () => {
     const date = futureDate(63);
     await book(app, admin, {

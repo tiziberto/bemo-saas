@@ -33,8 +33,11 @@ export class AppointmentsController {
     @CurrentUser() user: AuthUser,
     @Query('professionalId') professionalId?: string,
     @Query('date') date?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.appts.list(user, professionalId, date);
+    const n = Number(limit);
+    const acotado = Number.isInteger(n) && n > 0 ? Math.min(n, 500) : undefined;
+    return this.appts.list(user, professionalId, date, acotado);
   }
 
   @Patch(':id/status')

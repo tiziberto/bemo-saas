@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { api, errMessage } from '../../lib/api';
 import {
   APPOINTMENT_STATUS,
@@ -25,6 +26,7 @@ const emit = defineEmits<{ close: []; updated: [] }>();
 
 const auth = useAuth();
 const ui = useUi();
+const router = useRouter();
 const busy = ref('');
 
 const canEdit = computed(() => auth.isAdmin || auth.isReceptionist);
@@ -40,10 +42,12 @@ const wa = computed(() => waLink(props.appt.phone));
 const actions = computed(() => {
   const s = props.appt.status;
   const all = [
-    { status: 'confirmed', label: 'Confirmar', icon: 'check-circle', show: s === 'scheduled' },
-    { status: 'completed', label: 'Marcar atendido', icon: 'check', show: s === 'scheduled' || s === 'confirmed' },
-    { status: 'no_show', label: 'No vino', icon: 'alert-triangle', show: s === 'scheduled' || s === 'confirmed' },
-    { status: 'scheduled', label: 'Reactivar', icon: 'refresh', show: s === 'cancelled' || s === 'no_show' },
+    // `primary` = lo que se espera hacer desde ese estado. Con cinco botones grises
+    // iguales no se distinguía la acción del día del resto.
+    { status: 'confirmed', label: 'Confirmar', icon: 'check-circle', show: s === 'scheduled', primary: true },
+    { status: 'completed', label: 'Marcar atendido', icon: 'check', show: s === 'scheduled' || s === 'confirmed', primary: s === 'confirmed' },
+    { status: 'no_show', label: 'No vino', icon: 'alert-triangle', show: s === 'scheduled' || s === 'confirmed', primary: false },
+    { status: 'scheduled', label: 'Reactivar', icon: 'refresh', show: s === 'cancelled' || s === 'no_show', primary: true },
   ];
   return all.filter((a) => a.show);
 });
@@ -54,6 +58,12 @@ async function setStatus(status: string) {
     await api(`/appointments/${props.appt.id}/status`, { method: 'PATCH', body: { status } });
     ui.success('Turno actualizado', APPOINTMENT_STATUS[status]?.label);
     emit('updated');
+    // Atendido = el paciente ya pasó: lo que sigue es cargar la evolución. Se abre
+    // su historia en vez de dejar al profesional de vuelta en la agenda.
+    if (status === 'completed') {
+      emit('close');
+      router.push({ path: '/pacientes', query: { id: props.appt.person_id, nueva: '1' } });
+    }
   } catch (e) {
     ui.error('No se pudo actualizar', errMessage(e));
   } finally {
@@ -125,14 +135,15 @@ async function cancel() {
         <button
           v-for="a in actions"
           :key="a.status"
-          class="btn secondary sm"
+          class="btn sm"
+          :class="{ secondary: !a.primary }"
           :disabled="!!busy"
           @click="setStatus(a.status)"
         >
           <UiIcon :name="a.icon" size="15" /> {{ a.label }}
         </button>
       </template>
-      <button class="btn sm" @click="emit('close')">Listo</button>
+      <button class="btn ghost sm" @click="emit('close')">Cerrar</button>
     </template>
   </UiModal>
 </template>

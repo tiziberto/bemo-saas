@@ -67,7 +67,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <AppShell width="narrow">
+  <AppShell width="wide">
     <PageHeader
       title="Suscripción"
       subtitle="Tu plan, el precio según el equipo y cuánto falta para el próximo cobro"

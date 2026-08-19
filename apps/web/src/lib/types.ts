@@ -13,6 +13,10 @@ export interface Room {
 export interface Slot {
   start: string;
   end: string;
+  /** Consultorio del bloque de horario que generó el hueco. Null en aperturas puntuales. */
+  roomId?: string | null;
+  /** Ya hay un turno encima. Sólo viene si se pidieron los ocupados (sobreturno). */
+  taken?: boolean;
 }
 
 export interface Appointment {
@@ -23,6 +27,8 @@ export interface Appointment {
   reason: string | null;
   professional_id: string;
   room_id: string | null;
+  /** Para abrir la historia del paciente desde el turno. */
+  person_id: string;
   first_name: string;
   last_name: string;
   dni: string;

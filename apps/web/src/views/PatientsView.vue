@@ -19,6 +19,20 @@ import { useUi } from '../stores/ui';
 const auth = useAuth();
 const ui = useUi();
 const route = useRoute();
+
+/**
+ * Al marcar un turno como atendido el modal manda acá con `?id=<paciente>&nueva=1`.
+ * Lo que sigue es escribir la evolución, así que se deja el cursor puesto en el
+ * formulario en vez de obligar a buscarlo en la página.
+ */
+const entryBox = ref<HTMLTextAreaElement | null>(null);
+function enfocarNuevaEntrada() {
+  if (!route.query.nueva) return;
+  requestAnimationFrame(() => {
+    entryBox.value?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    entryBox.value?.focus();
+  });
+}
 const router = useRouter();
 
 const patients = ref<Patient[]>([]);
@@ -92,6 +106,7 @@ async function select(p: Patient) {
   router.replace({ query: { ...route.query, id: p.id } });
   try {
     entries.value = await api<ClinicalEntry[]>(`/patients/${p.id}/clinical-entries`);
+    enfocarNuevaEntrada();
   } catch (e) {
     historyError.value = errMessage(e, 'No se pudo abrir la historia clínica');
   } finally {
@@ -380,6 +395,7 @@ onMounted(async () => {
                 <input type="date" v-model="entry.entryDate" style="width:auto" title="Fecha de la entrada (por defecto hoy)" />
               </div>
               <textarea
+                ref="entryBox"
                 v-model="entry.content"
                 required
                 rows="3"

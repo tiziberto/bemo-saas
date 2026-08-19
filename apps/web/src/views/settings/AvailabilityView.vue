@@ -221,7 +221,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AppShell width="narrow">
+  <AppShell width="wide">
     <PageHeader
       title="Horarios de atención"
       subtitle="De acá salen los huecos que ve la recepción. Sin horarios cargados no se puede agendar."

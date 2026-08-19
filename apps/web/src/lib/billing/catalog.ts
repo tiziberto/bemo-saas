@@ -17,7 +17,7 @@ const FEATURES: PlanFeature[] = [
   {
     key: 'agenda',
     label: 'Agenda multiprofesional',
-    detail: 'Columnas por profesional, huecos libres a la vista y sobreturnos bloqueados por la base de datos.',
+    detail: 'Columnas por profesional, huecos libres a la vista y choques accidentales bloqueados por la base de datos. El sobreturno se carga con doble confirmación.',
     group: 'core',
     status: 'available',
     highlightIn: 'agenda',

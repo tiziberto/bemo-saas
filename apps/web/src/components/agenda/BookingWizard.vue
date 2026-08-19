@@ -164,7 +164,10 @@ async function loadWeek() {
     const from = weekStart.value;
     const to = addDays(from, 6);
     const [libres, exc] = await Promise.all([
-      api<Slot[]>('/availability' + qs({ professionalId: professionalId.value, from, to })),
+      api<Slot[]>(
+        '/availability' +
+          qs({ professionalId: professionalId.value, from, to, includeTaken: '1' }),
+      ),
       api<Exception[]>(
         '/availability-exceptions' + qs({ professionalId: professionalId.value, from, to }),
       ).catch(() => [] as Exception[]),
@@ -178,7 +181,11 @@ async function loadWeek() {
   }
 }
 
-const totalSlots = computed(() => Object.values(slotsByDay.value).flat().length);
+// Los ocupados se muestran (para poder sobreturnear) pero no son "libres": si se
+// cuentan, el pie miente sobre la disponibilidad real de la semana.
+const totalSlots = computed(
+  () => Object.values(slotsByDay.value).flat().filter((s) => !s.taken).length,
+);
 
 // --- Paso 4: confirmar ---
 const form = reactive({ roomId: '', reason: '', durationMinutes: 30 });
@@ -186,6 +193,9 @@ const REASONS = ['Control', 'Limpieza', 'Primera consulta', 'Urgencia', 'Tratami
 
 function pickSlot(slot: Slot) {
   selected.value = slot;
+  // El consultorio ya está definido en Horarios: se propone ese y no se vuelve a
+  // preguntar. Sigue siendo editable por si ese día se atiende en otra sala.
+  if (slot.roomId) form.roomId = slot.roomId;
   // La duración por defecto es la del hueco configurado en Horarios.
   form.durationMinutes = Math.max(
     5,
@@ -194,7 +204,12 @@ function pickSlot(slot: Slot) {
   step.value = 'confirmar';
 }
 
-async function confirm() {
+/**
+ * Alta del turno. `allowOverbook` sólo viaja en el segundo intento, después de que
+ * el usuario vio el choque y lo aceptó: la primera vez el turno superpuesto se
+ * rechaza igual que siempre, así que un choque accidental sigue siendo imposible.
+ */
+async function confirm(allowOverbook = false) {
   if (!selected.value || !professionalId.value) return;
   saving.value = true;
   error.value = '';
@@ -208,6 +223,7 @@ async function confirm() {
         startsAt: selected.value.start,
         durationMinutes: Number(form.durationMinutes),
         reason: form.reason || undefined,
+        allowOverbook: allowOverbook || undefined,
         person: {
           dni: person.dni.trim(),
           firstName: person.firstName.trim(),
@@ -217,14 +233,37 @@ async function confirm() {
       },
     });
     ui.success(
-      'Turno agendado',
+      allowOverbook ? 'Sobreturno agendado' : 'Turno agendado',
       `${person.firstName} ${person.lastName} · ${fmtTime(selected.value.start)}`,
     );
     emit('booked');
   } catch (e) {
     const err = e as ApiError;
-    conflict.value =
+    const ocupado =
       err.code === 'PROFESSIONAL_SLOT_TAKEN' || err.code === 'ROOM_SLOT_TAKEN';
+
+    // Ese horario está tomado. Puede ser que alguien se adelantó, o puede ser una
+    // urgencia que hay que encajar igual: se pregunta, y recién ahí se fuerza.
+    if (ocupado && !allowOverbook) {
+      saving.value = false;
+      const ok = await ui.confirm({
+        title: '¿Cargarlo como sobreturno?',
+        desc:
+          `${fmtTime(selected.value.start)} ya está ocupado. ` +
+          'Si seguís, el turno queda encima del existente y marcado como sobreturno. ' +
+          'El profesional va a tener dos pacientes a la misma hora.',
+        confirmLabel: 'Sí, es un sobreturno',
+        cancelLabel: 'Elegir otro horario',
+        danger: true,
+      });
+      if (ok) return confirm(true);
+      conflict.value = true;
+      error.value = 'Ese horario ya está ocupado. Elegí otro.';
+      await loadWeek();
+      return;
+    }
+
+    conflict.value = ocupado;
     error.value = errMessage(e, 'No se pudo agendar el turno');
     if (conflict.value) await loadWeek();
   } finally {
@@ -457,7 +496,9 @@ onMounted(() => {
                 v-for="s in slotsByDay[day]"
                 :key="s.start"
                 class="slot-pick"
+                :class="{ taken: s.taken }"
                 :aria-pressed="selected?.start === s.start"
+                :title="s.taken ? 'Ocupado · se puede cargar como sobreturno' : 'Libre'"
                 @click="pickSlot(s)"
               >
                 {{ fmtTime(s.start) }}
@@ -570,7 +611,7 @@ onMounted(() => {
       >
         Continuar <UiIcon name="arrow-right" size="15" />
       </button>
-      <button v-else-if="step === 'confirmar'" class="btn" :disabled="saving" @click="confirm">
+      <button v-else-if="step === 'confirmar'" class="btn" :disabled="saving" @click="confirm()">
         <span v-if="saving" class="spinner"></span>
         <UiIcon v-else name="check" size="15" />
         Confirmar turno

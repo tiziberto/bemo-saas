@@ -5,6 +5,8 @@ import { ROLE_LABEL } from '../lib/format';
 import { useAuth } from '../stores/auth';
 import { useSubscription } from '../stores/subscription';
 import { useUi } from '../stores/ui';
+import { MOD_K } from '../lib/platform';
+import BemoLogo from './ui/BemoLogo.vue';
 import UiAvatar from './ui/UiAvatar.vue';
 import UiIcon from './ui/UiIcon.vue';
 import UiMenu from './ui/UiMenu.vue';
@@ -94,8 +96,8 @@ onMounted(() => {
 
     <aside class="sidebar" :class="{ collapsed: ui.sidebarCollapsed, open: ui.sidebarOpen }">
       <div class="brand">
-        <span class="logo">b</span>
-        <span class="brand-text">bemo</span>
+        <BemoLogo :tam="26" />
+        <span class="brand-text">bemo <em class="brand-sub">MED</em></span>
       </div>
 
       <nav class="nav">
@@ -131,7 +133,7 @@ onMounted(() => {
         <button class="menu-item" @click="ui.paletteOpen = true">
           <UiIcon name="search" size="16" />
           <span class="sidebar-foot-text">Buscar</span>
-          <span class="right sidebar-foot-text"><kbd>⌘K</kbd></span>
+          <span class="right sidebar-foot-text"><kbd>{{ MOD_K }}</kbd></span>
         </button>
         <button class="menu-item" @click="ui.toggleTheme()">
           <UiIcon :name="ui.isDark ? 'sun' : 'moon'" size="16" />
@@ -139,7 +141,7 @@ onMounted(() => {
         </button>
         <button class="menu-item desktop-only" @click="ui.toggleSidebar()">
           <UiIcon name="sidebar" size="16" />
-          <span class="sidebar-foot-text">Contraer</span>
+          <span class="sidebar-foot-text">{{ ui.sidebarCollapsed ? 'Expandir' : 'Contraer' }}</span>
         </button>
       </div>
     </aside>
@@ -154,6 +156,17 @@ onMounted(() => {
           <UiIcon name="menu" />
         </button>
 
+        <!-- El de contraer estaba sólo al fondo del sidebar: nadie lo encontraba. -->
+        <button
+          class="icon-btn desktop-only"
+          :aria-label="ui.sidebarCollapsed ? 'Expandir el menú' : 'Contraer el menú'"
+          :aria-expanded="!ui.sidebarCollapsed"
+          :title="ui.sidebarCollapsed ? 'Expandir el menú' : 'Contraer el menú'"
+          @click="ui.toggleSidebar()"
+        >
+          <UiIcon name="sidebar" size="17" />
+        </button>
+
         <div class="clinic">
           <UiIcon name="building" size="16" style="color:var(--muted-2)" />
           <span class="truncate">{{ auth.clinicName }}</span>
@@ -164,7 +177,7 @@ onMounted(() => {
         <button class="btn secondary sm desktop-only" @click="ui.paletteOpen = true">
           <UiIcon name="search" size="15" />
           Buscar
-          <kbd style="margin-left:4px">⌘K</kbd>
+          <kbd style="margin-left:4px">{{ MOD_K }}</kbd>
         </button>
 
         <UiMenu>

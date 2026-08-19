@@ -1,20 +1,21 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router';
+import BemoLogo from './ui/BemoLogo.vue';
 import UiIcon from './ui/UiIcon.vue';
 
 const POINTS = [
   { icon: 'calendar-check', text: 'Agenda del día con los huecos libres a la vista' },
   { icon: 'shield', text: 'Historia clínica privada de cada profesional, auditada' },
-  { icon: 'ban', text: 'Imposible sobreturnear: lo bloquea la base de datos' },
+  { icon: 'ban', text: 'Sin choques accidentales: el sobreturno se carga a propósito' },
 ];
 </script>
 
 <template>
   <div class="auth-wrap">
     <aside class="auth-side">
-      <div class="row tight">
-        <span class="logo-lg">b</span>
-        <span style="font-family:'General Sans',sans-serif;font-weight:600;font-size:19px">bemo</span>
-      </div>
+      <RouterLink to="/" class="auth-brand" aria-label="Volver al inicio">
+        <BemoLogo :tam="40" con-nombre />
+      </RouterLink>
 
       <div>
         <p class="auth-claim">La agenda del consultorio, sin planillas.</p>
@@ -32,6 +33,9 @@ const POINTS = [
     </aside>
 
     <main class="auth-main">
+      <RouterLink to="/" class="auth-brand mobile-only mb-lg" aria-label="Volver al inicio">
+        <BemoLogo :tam="40" con-nombre />
+      </RouterLink>
       <div class="auth-card">
         <slot />
       </div>

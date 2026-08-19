@@ -795,6 +795,7 @@ td.actions { text-align: right; white-space: nowrap; width: 1%; }
 .modal-foot {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--s-sm);
   justify-content: flex-end;
   padding: var(--s-md) var(--s-xl);
@@ -1457,18 +1458,6 @@ td.actions { text-align: right; white-space: nowrap; width: 1%; }
   background: var(--bg);
 }
 .auth-card { width: 100%; max-width: 400px; }
-.logo-lg {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--r-lg);
-  background: var(--teal);
-  color: var(--on-accent);
-  display: grid;
-  place-items: center;
-  font-family: 'General Sans', sans-serif;
-  font-weight: 600;
-  font-size: 21px;
-}
 
 /* --- 14. Utilidades ------------------------------------------------------ */
 .row { display: flex; gap: var(--s-md); align-items: center; flex-wrap: wrap; }
@@ -1568,4 +1557,91 @@ td.actions { text-align: right; white-space: nowrap; width: 1%; }
   .content { padding: 0; }
   .card, .agenda { box-shadow: none; border-color: #ddd; }
   body { background: #fff; }
+}
+
+/* ── Formularios dentro de pantallas anchas ─────────────────────────────────
+   Las pantallas de configuración pasaron a ancho completo porque sus tablas lo
+   piden, pero un input de 1400px es incómodo de leer y de completar. DESIGN.md
+   fija los formularios en ~640px: esta clase es ese tope, aplicado al bloque de
+   campos y no a la tarjeta que lo contiene. */
+.form-narrow { max-width: 640px; }
+
+/* ── Riel contraído: etiquetas al pasar el mouse ────────────────────────────
+   Contraído el sidebar es una columna de íconos sin texto. El `title` del
+   navegador tarda medio segundo y se dibuja fuera del sistema visual, así que
+   la etiqueta se muestra acá, al lado del ícono y con los tokens de la app. */
+.sidebar.collapsed .nav a { position: relative; }
+.sidebar.collapsed .nav a::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + var(--s-sm));
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 5px 9px;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--t-micro) ease-out;
+  z-index: 95;
+  box-shadow: var(--sh-2);
+}
+.sidebar.collapsed .nav a:hover::after,
+.sidebar.collapsed .nav a:focus-visible::after { opacity: 1; visibility: visible; }
+@media (prefers-reduced-motion: reduce) {
+  .sidebar.collapsed .nav a::after { transition: none; }
+}
+
+/* ── Hueco ya ocupado (candidato a sobreturno) ──────────────────────────────
+   Se muestra, en vez de esconderlo: si no, cargar un sobreturno a propósito era
+   imposible desde la pantalla y la doble confirmación sólo saltaba por accidente,
+   cuando dos personas agendaban a la vez. Se ve claramente distinto de un libre. */
+.slot-pick.taken {
+  background: var(--warning-tint);
+  border-color: var(--warning-line);
+  color: var(--warning);
+  border-style: dashed;
+}
+.slot-pick.taken:hover {
+  background: var(--warning-tint);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+/* ── Marca de las pantallas de acceso ───────────────────────────────────────
+   Es el camino de vuelta a la landing desde login, registro e invitación. En
+   mobile el panel lateral no se muestra, así que la marca se repite arriba del
+   formulario: si no, desde el celular no había forma de volver. */
+.auth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-sm);
+  text-decoration: none;
+  color: var(--ink);
+  border-radius: var(--r-md);
+  transition: opacity var(--t-micro);
+}
+.auth-brand:hover { opacity: 0.75; }
+.auth-brand-text {
+  font-family: 'General Sans', sans-serif;
+  font-weight: 600;
+  font-size: 19px;
+}
+
+/* El "MED" del wordmark en el sidebar: mismo tratamiento que en el logo, con la
+   variante de teal pensada para texto chico. Se oculta al contraer, junto con
+   el resto de `.brand-text`. */
+.brand-sub {
+  font-style: normal;
+  font-family: 'Geist', sans-serif;
+  font-weight: 500;
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+  color: var(--teal-ink);
+  margin-left: 0.3em;
 }

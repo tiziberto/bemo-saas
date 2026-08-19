@@ -62,3 +62,4 @@
 | 2026-08-02 | Agenda como grilla horaria con columnas por profesional | La recepción necesita ver choques y huecos de un vistazo; la lista no lo muestra |
 | 2026-08-02 | Configuración partida en Equipo/Consultorios/Horarios/Clínica | Una pantalla por función en vez de un cajón de sastre |
 | 2026-08-02 | Pantalla de suscripción en modo demostración | Precios y cálculo reales, cobro desconectado; se comunica con un aviso y estados vacíos honestos, nunca con datos falsos (nada de facturas ni tarjetas ficticias) |
+| 2026-08-19 | Sobreturno permitido con doble confirmación | El choque accidental sigue siendo imposible (EXCLUDE en la base), pero la urgencia que hay que encajar es un caso real: se carga marcada como sobreturno y queda auditada. La landing dejó de prometer "sin sobreturnos" |

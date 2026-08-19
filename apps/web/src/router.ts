@@ -7,7 +7,9 @@ const routes: RouteRecordRaw[] = [
   { path: '/invitacion', component: () => import('./views/AcceptInviteView.vue'), meta: { public: true, title: 'Sumarte al equipo' } },
 
   // Trabajo del día
-  { path: '/', redirect: '/hoy' },
+  // La raíz es la landing pública. Quien ya tiene sesión no la ve: el guard de abajo
+  // manda a /hoy cualquier ruta `public` con token, así que entra directo al panel.
+  { path: '/', component: () => import('./views/LandingView.vue'), meta: { public: true, title: 'Agenda para consultorios' } },
   { path: '/hoy', component: () => import('./views/DashboardView.vue'), meta: { title: 'Hoy' } },
   { path: '/agenda', component: () => import('./views/AgendaView.vue'), meta: { title: 'Agenda' } },
   {
@@ -55,7 +57,14 @@ const routes: RouteRecordRaw[] = [
 export const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior: () => ({ top: 0 }),
+  scrollBehavior(to, _from, guardado) {
+    // Los anclas de la landing (#agenda, #precios…) cambian la URL, y eso cuenta
+    // como navegación: con un `top: 0` fijo el router scrolleaba al principio y
+    // parecía que el link no hacía nada. `top` compensa la barra pegajosa, que si
+    // no tapa el título de la sección.
+    if (to.hash) return { el: to.hash, top: 72, behavior: 'smooth' };
+    return guardado ?? { top: 0 };
+  },
 });
 
 function currentRoles(): string[] {

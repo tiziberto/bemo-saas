@@ -87,7 +87,7 @@ onMounted(load);
 </script>
 
 <template>
-  <AppShell width="narrow">
+  <AppShell width="wide">
     <PageHeader
       title="Equipo"
       subtitle="Quién entra a bemo y qué puede hacer cada uno"
@@ -102,7 +102,7 @@ onMounted(load);
     <div v-if="error" class="alert err"><UiIcon name="alert-circle" size="16" />{{ error }}</div>
 
     <div v-if="lastInvite" class="card pad-sm mb-lg" style="border-color:var(--teal-line)">
-      <div class="row tight mb-sm">
+      <div class="row tight mb-sm form-narrow">
         <UiIcon name="check-circle" size="16" style="color:var(--success)" />
         <strong class="text-sm">Invitación lista para {{ lastInvite.email }}</strong>
         <button class="icon-btn" style="margin-left:auto" @click="lastInvite = null" aria-label="Cerrar">
@@ -113,7 +113,7 @@ onMounted(load);
         Todavía no mandamos emails: pasale este link para que cree su contraseña. Vence en 7 días y
         se usa una sola vez.
       </p>
-      <div class="row tight nowrap">
+      <div class="row tight nowrap form-narrow">
         <input class="mono text-xs" :value="inviteUrl" readonly @focus="($event.target as HTMLInputElement).select()" />
         <button class="btn secondary sm" @click="copy(inviteUrl, 'Link')">
           <UiIcon name="copy" size="15" /> Copiar

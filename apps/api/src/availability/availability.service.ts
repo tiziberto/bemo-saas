@@ -152,7 +152,13 @@ export class AvailabilityService {
    * suma horas), el día no está bloqueado, no lo pisa un bloqueo parcial, y no
    * hay un turno activo encima. Todo en la zona horaria de la clínica.
    */
-  freeSlots(user: AuthUser, professionalId: string, from: string, to: string) {
+  freeSlots(
+    user: AuthUser,
+    professionalId: string,
+    from: string,
+    to: string,
+    includeTaken = false,
+  ) {
     return this.db.withTenant(this.ctx(user), async (c) => {
       const r = await c.query(
         `
@@ -173,7 +179,7 @@ export class AvailabilityService {
         ),
         -- Franjas de atención = semana tipo + aperturas puntuales.
         franjas AS (
-          SELECT d.dia, b.start_time, b.end_time, b.slot_minutes
+          SELECT d.dia, b.start_time, b.end_time, b.slot_minutes, b.room_id
             FROM dias d
             JOIN availability_blocks b
               ON b.professional_id = $1
@@ -182,7 +188,8 @@ export class AvailabilityService {
              AND (b.valid_to   IS NULL OR b.valid_to   >= d.dia)
            WHERE d.dia NOT IN (SELECT dia FROM dias_bloqueados)
           UNION ALL
-          SELECT e.date, e.start_time, e.end_time, (SELECT mins FROM slot_default)
+          -- Las aperturas puntuales no tienen consultorio propio: queda en null.
+          SELECT e.date, e.start_time, e.end_time, (SELECT mins FROM slot_default), NULL::uuid
             FROM availability_exceptions e
            WHERE e.professional_id = $1 AND e.kind = 'add'
              AND e.start_time IS NOT NULL AND e.end_time IS NOT NULL
@@ -190,7 +197,8 @@ export class AvailabilityService {
         ),
         slots AS (
           SELECT gs AS slot_start,
-                 gs + make_interval(mins => f.slot_minutes) AS slot_end
+                 gs + make_interval(mins => f.slot_minutes) AS slot_end,
+                 f.room_id
             FROM franjas f, cfg,
             LATERAL generate_series(
               (f.dia + f.start_time) AT TIME ZONE cfg.timezone,
@@ -198,14 +206,22 @@ export class AvailabilityService {
               make_interval(mins => f.slot_minutes)
             ) AS gs
         )
-        SELECT DISTINCT s.slot_start AS "start", s.slot_end AS "end"
+        SELECT DISTINCT s.slot_start AS "start", s.slot_end AS "end", s.room_id AS "roomId",
+               EXISTS (
+                 SELECT 1 FROM appointments a
+                  WHERE a.professional_id = $1
+                    AND a.status IN ('scheduled','confirmed','completed')
+                    AND a.during && tstzrange(s.slot_start, s.slot_end, '[)')
+               ) AS "taken"
           FROM slots s, cfg
-         WHERE NOT EXISTS (
+         WHERE ($4::bool OR NOT EXISTS (
            SELECT 1 FROM appointments a
             WHERE a.professional_id = $1
               AND a.status IN ('scheduled','confirmed','completed')
               AND a.during && tstzrange(s.slot_start, s.slot_end, '[)')
-         )
+         ))
+           -- Un bloqueo de agenda NO se puede sobreturnear: si el profesional no
+           -- está, no hay a quién encajarle el paciente.
            AND NOT EXISTS (
            -- Bloqueos parciales: media jornada, un rato para una reunión.
            SELECT 1 FROM availability_exceptions e
@@ -220,7 +236,7 @@ export class AvailabilityService {
          )
          ORDER BY 1
         `,
-        [professionalId, from, to],
+        [professionalId, from, to, includeTaken],
       );
       return r.rows;
     });

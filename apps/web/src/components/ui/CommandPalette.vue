@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MOD_KEY } from '../../lib/platform';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../../lib/api';
@@ -189,7 +190,7 @@ onMounted(async () => {
         <span><kbd>↑</kbd> <kbd>↓</kbd> navegar</span>
         <span><kbd>↵</kbd> abrir</span>
         <span class="spacer"></span>
-        <span><kbd>⌘</kbd><kbd>K</kbd> abrir/cerrar</span>
+        <span><kbd>{{ MOD_KEY }}</kbd><kbd>K</kbd> abrir/cerrar</span>
       </div>
     </div>
   </div>

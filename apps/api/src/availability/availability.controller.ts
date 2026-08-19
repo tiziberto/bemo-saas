@@ -78,9 +78,15 @@ export class AvailabilityController {
     @Query('date') date?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    // El asistente de reserva los pide para poder ofrecer un sobreturno; el resto
+    // de las pantallas cuenta huecos libres y no los quiere.
+    @Query('includeTaken') includeTaken?: string,
   ) {
     const desde = from ?? date!;
     const hasta = to ?? date ?? from!;
-    return this.availability.freeSlots(user, professionalId, desde, hasta);
+    return this.availability.freeSlots(
+      user, professionalId, desde, hasta,
+      includeTaken === '1' || includeTaken === 'true',
+    );
   }
 }
