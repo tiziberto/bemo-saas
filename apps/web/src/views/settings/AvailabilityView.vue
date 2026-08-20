@@ -7,7 +7,7 @@ import UiEmpty from '../../components/ui/UiEmpty.vue';
 import UiIcon from '../../components/ui/UiIcon.vue';
 import UiSkeleton from '../../components/ui/UiSkeleton.vue';
 import { api, errMessage, qs } from '../../lib/api';
-import { addDays, fmtDate, todayISO, WEEKDAYS, WEEKDAYS_SHORT } from '../../lib/format';
+import { DURACIONES, WEEKDAYS, WEEKDAYS_SHORT, addDays, fmtDate, todayISO } from '../../lib/format';
 import type { AvailabilityBlock, Professional, Room } from '../../lib/types';
 import { useAuth } from '../../stores/auth';
 import { useUi } from '../../stores/ui';
@@ -37,6 +37,7 @@ const canPickProfessional = computed(() => auth.isAdmin);
 interface Exception {
   id: string;
   date: string;
+  date_to?: string;
   kind: 'add' | 'remove';
   start_time: string | null;
   end_time: string | null;
@@ -45,6 +46,7 @@ const exceptions = ref<Exception[]>([]);
 const savingException = ref(false);
 const exception = reactive({
   date: addDays(todayISO(), 1),
+  dateTo: '',
   kind: 'remove' as 'remove' | 'add',
   allDay: true,
   startTime: '09:00',
@@ -66,6 +68,8 @@ async function createException() {
       body: {
         professionalId: profId.value,
         date: exception.date,
+        // Sin fin, es de un día: lo resuelve el backend.
+        dateTo: exception.dateTo || undefined,
         kind: exception.kind,
         startTime: exception.allDay && exception.kind === 'remove' ? undefined : exception.startTime,
         endTime: exception.allDay && exception.kind === 'remove' ? undefined : exception.endTime,
@@ -332,11 +336,7 @@ onMounted(async () => {
             <div class="field">
               <label class="label">Duración del turno</label>
               <select v-model="form.slotMinutes">
-                <option :value="15">15 minutos</option>
-                <option :value="20">20 minutos</option>
-                <option :value="30">30 minutos</option>
-                <option :value="45">45 minutos</option>
-                <option :value="60">1 hora</option>
+                <option v-for="d in DURACIONES" :key="d.valor" :value="d.valor">{{ d.texto }}</option>
               </select>
             </div>
             <div class="field">
@@ -383,7 +383,10 @@ onMounted(async () => {
                   </span>
                 </td>
                 <td>
-                  <span class="text-sm strong">{{ fmtDate(e.date) }}</span>
+                  <span class="text-sm strong">
+                    {{ fmtDate(e.date) }}<template v-if="e.date_to && e.date_to !== e.date">
+                      al {{ fmtDate(e.date_to) }}</template>
+                  </span>
                   <span class="muted text-sm">
                     ·
                     {{
@@ -419,8 +422,20 @@ onMounted(async () => {
               </select>
             </div>
             <div>
-              <label class="label">Día</label>
+              <label class="label">Desde el día</label>
               <input type="date" v-model="exception.date" :min="todayISO()" style="width:150px" />
+            </div>
+            <div>
+              <label class="label">Hasta el día</label>
+              <!-- Vacío = un solo día. Con vacaciones se pone el último y va en
+                   una sola fila, no una por día. -->
+              <input
+                type="date"
+                v-model="exception.dateTo"
+                :min="exception.date || todayISO()"
+                style="width:150px"
+                placeholder="opcional"
+              />
             </div>
             <label v-if="exception.kind === 'remove'" class="check" style="margin-bottom:9px">
               <input type="checkbox" v-model="exception.allDay" />

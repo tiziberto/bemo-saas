@@ -1,4 +1,10 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 export class CreatePatientDto {
   @IsString() @IsNotEmpty() dni!: string;
@@ -6,6 +12,9 @@ export class CreatePatientDto {
   @IsString() @IsNotEmpty() lastName!: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() email?: string;
+  @IsOptional() @IsIn(['F', 'M', 'X']) sex?: string;
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'birthdate debe ser AAAA-MM-DD' })
+  birthdate?: string;
 }
 
 export class ClinicalEntryDto {

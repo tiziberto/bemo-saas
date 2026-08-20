@@ -44,10 +44,59 @@ const ROLES = [
   },
 ];
 
+interface Especialidad { id: string; label: string }
+
+// ── Especialidades por profesional ──────────────────────────────────────────
+// Se traen todas juntas al cargar el equipo: una consulta por fila serían N+1
+// pedidos para pintar unos chips.
+const ofrecidas = ref<Especialidad[]>([]);
+const porUsuario = ref<Record<string, Especialidad[]>>({});
+const espUsuario = ref<{ id: string; full_name: string; email: string } | null>(null);
+const espElegidas = ref<string[]>([]);
+const guardandoEsp = ref(false);
+
+function espDe(userId: string) {
+  return porUsuario.value[userId] ?? [];
+}
+
+async function cargarEspecialidades(ids: string[]) {
+  ofrecidas.value = await api<Especialidad[]>('/clinic/specialties').catch(() => []);
+  const listas = await Promise.all(
+    ids.map((id) => api<Especialidad[]>(`/users/${id}/specialties`).catch(() => [])),
+  );
+  porUsuario.value = Object.fromEntries(ids.map((id, i) => [id, listas[i]]));
+}
+
+function abrirEsp(u: { id: string; full_name: string; email: string }) {
+  espUsuario.value = u;
+  espElegidas.value = espDe(u.id).map((e) => e.id);
+}
+
+async function guardarEsp() {
+  if (!espUsuario.value) return;
+  guardandoEsp.value = true;
+  try {
+    const r = await api<Especialidad[]>(`/users/${espUsuario.value.id}/specialties`, {
+      method: 'PUT',
+      body: { specialtyIds: espElegidas.value },
+    });
+    porUsuario.value = { ...porUsuario.value, [espUsuario.value.id]: r };
+    espUsuario.value = null;
+    ui.success('Especialidades actualizadas');
+  } catch (e) {
+    ui.error('No se pudo guardar', errMessage(e));
+  } finally {
+    guardandoEsp.value = false;
+  }
+}
+
 async function load() {
   loading.value = true;
   try {
     users.value = await api<TeamUser[]>('/users');
+    await cargarEspecialidades(
+      users.value.filter((u) => u.roles.includes('professional')).map((u) => u.id),
+    );
   } catch (e) {
     error.value = errMessage(e);
   } finally {
@@ -96,7 +145,31 @@ onMounted(load);
         <button class="btn sm" @click="showInvite = true">
           <UiIcon name="user-plus" size="15" /> Invitar
         </button>
-      </template>
+      
+  <UiModal
+    v-if="espUsuario"
+    :title="`Especialidades de ${espUsuario.full_name || espUsuario.email}`"
+    subtitle="Sólo se pueden elegir las que ofrece el consultorio"
+    @close="espUsuario = null"
+  >
+    <div v-if="!ofrecidas.length" class="alert warning">
+      El consultorio todavía no tiene especialidades cargadas.
+      Agregalas en Configuración › Clínica y volvé.
+    </div>
+    <div v-else class="esp-grid">
+      <label v-for="e in ofrecidas" :key="e.id" class="esp-item">
+        <input type="checkbox" :value="e.id" v-model="espElegidas" />
+        <span>{{ e.label }}</span>
+      </label>
+    </div>
+    <template #footer>
+      <button class="btn ghost sm" @click="espUsuario = null">Cancelar</button>
+      <button class="btn sm" :disabled="!ofrecidas.length || guardandoEsp" @click="guardarEsp">
+        <span v-if="guardandoEsp" class="spinner"></span>Guardar
+      </button>
+    </template>
+  </UiModal>
+</template>
     </PageHeader>
 
     <div v-if="error" class="alert err"><UiIcon name="alert-circle" size="16" />{{ error }}</div>
@@ -135,6 +208,7 @@ onMounted(load);
             <tr>
               <th>Persona</th>
               <th>Roles</th>
+              <th>Especialidades</th>
               <th>Estado</th>
             </tr>
           </thead>
@@ -154,6 +228,16 @@ onMounted(load);
                   <span v-for="r in u.roles" :key="r" class="chip gray">{{ ROLE_LABEL[r] || r }}</span>
                   <span v-if="!u.roles.length" class="muted text-xs">Sin rol (invitación pendiente)</span>
                 </div>
+              </td>
+              <td>
+                <!-- Sólo tiene sentido para quien atiende: recepción no informa. -->
+                <div v-if="u.roles.includes('professional')" class="row tight">
+                  <span v-for="e in espDe(u.id)" :key="e.id" class="chip gray">{{ e.label }}</span>
+                  <button class="btn ghost xs" @click="abrirEsp(u)">
+                    {{ espDe(u.id).length ? 'Cambiar' : 'Asignar' }}
+                  </button>
+                </div>
+                <span v-else class="muted text-xs">—</span>
               </td>
               <td>
                 <span class="chip" :class="u.is_active === false ? 'gray' : 'success'">

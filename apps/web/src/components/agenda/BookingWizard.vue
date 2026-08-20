@@ -1,16 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { api, errMessage, qs, type ApiError } from '../../lib/api';
-import {
-  addDays,
-  capitalize,
-  fmtDayLong,
-  fmtDayShort,
-  fmtTime,
-  minutesOfDay,
-  todayISO,
-  WEEKDAYS_SHORT,
-} from '../../lib/format';
+import { parsearDni } from '../../lib/dni';
+import { DURACIONES, WEEKDAYS_SHORT, addDays, capitalize, fmtDayLong, fmtDayShort, fmtTime, minutesOfDay, todayISO } from '../../lib/format';
 import type { Professional, Room, Slot } from '../../lib/types';
 import { useUi } from '../../stores/ui';
 import UiAvatar from '../ui/UiAvatar.vue';
@@ -63,7 +55,40 @@ const term = ref('');
 const searching = ref(false);
 const searched = ref(false);
 const matches = ref<Person[]>([]);
-const person = reactive({ id: '', dni: '', firstName: '', lastName: '', phone: '' });
+const person = reactive({
+  id: '', dni: '', firstName: '', lastName: '', phone: '',
+  sex: '' as '' | 'F' | 'M' | 'X',
+  birthdate: '',
+});
+
+/**
+ * El lector de DNI se comporta como un teclado: apoyás el documento y "tipea" la
+ * cadena entera de un saque, terminando en Enter. Si lo que llegó al campo tiene
+ * pinta de escaneo se completa todo solo y se busca; si no, sigue siendo el DNI
+ * o el nombre que alguien escribió a mano.
+ */
+function alEscribirEnBusqueda() {
+  const datos = parsearDni(term.value);
+  if (!datos) return false;
+  term.value = datos.dni;
+  Object.assign(person, {
+    id: '',
+    dni: datos.dni,
+    firstName: datos.nombres,
+    lastName: datos.apellido,
+    sex: datos.sexo ?? '',
+    birthdate: datos.fechaNacimiento ?? '',
+  });
+  ui.success('DNI leído', `${datos.nombres} ${datos.apellido}`);
+  return true;
+}
+
+/** Enter en el campo: puede venir del lector o de alguien que aprieta Enter. */
+function buscarOLeer() {
+  // Si era un escaneo, igual se busca: puede que el paciente ya exista.
+  alEscribirEnBusqueda();
+  search();
+}
 
 /** Si el texto tiene letras es un nombre; si no, un DNI. */
 const isName = computed(() => /[a-záéíóúñ]/i.test(term.value));
@@ -229,6 +254,8 @@ async function confirm(allowOverbook = false) {
           firstName: person.firstName.trim(),
           lastName: person.lastName.trim(),
           phone: person.phone.trim() || undefined,
+          sex: person.sex || undefined,
+          birthdate: person.birthdate || undefined,
         },
       },
     });
@@ -348,7 +375,7 @@ onMounted(() => {
             autofocus
             inputmode="numeric"
             placeholder="30111222 — o el nombre, si no lo sabés"
-            @keydown.enter.prevent="search"
+            @keydown.enter.prevent="buscarOLeer"
           />
           <button class="btn secondary" :disabled="searching || !term.trim()" @click="search">
             <span v-if="searching" class="spinner"></span>
@@ -554,12 +581,7 @@ onMounted(() => {
         <div class="field">
           <label class="label">Duración</label>
           <select v-model="form.durationMinutes">
-            <option :value="15">15 minutos</option>
-            <option :value="20">20 minutos</option>
-            <option :value="30">30 minutos</option>
-            <option :value="45">45 minutos</option>
-            <option :value="60">1 hora</option>
-            <option :value="90">1 hora 30</option>
+            <option v-for="d in DURACIONES" :key="d.valor" :value="d.valor">{{ d.texto }}</option>
           </select>
         </div>
         <div class="field">

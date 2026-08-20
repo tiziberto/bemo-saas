@@ -29,6 +29,12 @@ export interface Appointment {
   room_id: string | null;
   /** Para abrir la historia del paciente desde el turno. */
   person_id: string;
+  /** Se cargó a sabiendas encima de otro turno. */
+  is_overbook: boolean;
+  /** Cuándo recepción marcó que llegó. Null = todavía no llegó. */
+  arrived_at: string | null;
+  /** Cuándo el profesional lo llamó a pasar. */
+  called_at: string | null;
   first_name: string;
   last_name: string;
   dni: string;

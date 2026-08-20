@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RoomsModule } from './rooms/rooms.module';
+import { SpecialtiesModule } from './specialties/specialties.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { PatientsModule } from './patients/patients.module';
@@ -27,6 +28,7 @@ import { PersonsModule } from './persons/persons.module';
     AuthModule,
     UsersModule,
     RoomsModule,
+    SpecialtiesModule,
     AvailabilityModule,
     AppointmentsModule,
     PatientsModule,

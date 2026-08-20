@@ -92,13 +92,16 @@ export class AvailabilityService {
     return this.db.withTenant(this.ctx(user), async (c) => {
       const r = await c.query(
         `INSERT INTO availability_exceptions
-           (clinic_id, professional_id, date, kind, start_time, end_time)
-         VALUES ($1,$2,$3,$4,$5,$6)
-         RETURNING id, professional_id, date, kind, start_time, end_time`,
+           (clinic_id, professional_id, date, date_to, kind, start_time, end_time)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING id, professional_id, date, date_to, kind, start_time, end_time`,
         [
           user.clinicId,
           professionalId,
           dto.date,
+          // Un solo día es el rango que empieza y termina el mismo día: así no
+          // hay dos formas de representar lo mismo.
+          dto.dateTo ?? dto.date,
           dto.kind,
           dto.startTime ?? null,
           dto.endTime ?? null,
@@ -111,11 +114,13 @@ export class AvailabilityService {
   listExceptions(user: AuthUser, professionalId?: string, from?: string, to?: string) {
     return this.db.withTenant(this.ctx(user), async (c) => {
       const r = await c.query(
-        `SELECT id, professional_id, date, kind, start_time, end_time
+        `SELECT id, professional_id, date, date_to, kind, start_time, end_time
            FROM availability_exceptions
           WHERE ($1::uuid IS NULL OR professional_id = $1)
-            AND ($2::date IS NULL OR date >= $2::date)
-            AND ($3::date IS NULL OR date <= $3::date)
+            -- Solapamiento, no "empieza dentro": un bloqueo del 1 al 30 tiene
+            -- que aparecer cuando se consulta la semana del 10.
+            AND ($2::date IS NULL OR date_to >= $2::date)
+            AND ($3::date IS NULL OR date    <= $3::date)
           ORDER BY date, start_time NULLS FIRST`,
         [professionalId ?? null, from ?? null, to ?? null],
       );
@@ -167,9 +172,12 @@ export class AvailabilityService {
           SELECT d::date AS dia FROM generate_series($2::date, $3::date, interval '1 day') d
         ),
         -- Días bloqueados por completo (excepción 'remove' sin horario).
+        -- Un bloqueo puede abarcar varios días (vacaciones): se expande a un día
+        -- por fila. Mirando sólo date se bloqueaba nada más que el primero.
         dias_bloqueados AS (
-          SELECT e.date AS dia
-            FROM availability_exceptions e
+          SELECT d::date AS dia
+            FROM availability_exceptions e,
+                 LATERAL generate_series(e.date, e.date_to, interval '1 day') d
            WHERE e.professional_id = $1 AND e.kind = 'remove' AND e.start_time IS NULL
         ),
         -- Para las aperturas puntuales, que no traen tamaño de turno propio.
@@ -189,11 +197,14 @@ export class AvailabilityService {
            WHERE d.dia NOT IN (SELECT dia FROM dias_bloqueados)
           UNION ALL
           -- Las aperturas puntuales no tienen consultorio propio: queda en null.
-          SELECT e.date, e.start_time, e.end_time, (SELECT mins FROM slot_default), NULL::uuid
-            FROM availability_exceptions e
+          SELECT d::date, e.start_time, e.end_time, (SELECT mins FROM slot_default), NULL::uuid
+            FROM availability_exceptions e,
+                 LATERAL generate_series(
+                   GREATEST(e.date, $2::date), LEAST(e.date_to, $3::date), interval '1 day'
+                 ) d
            WHERE e.professional_id = $1 AND e.kind = 'add'
              AND e.start_time IS NOT NULL AND e.end_time IS NOT NULL
-             AND e.date BETWEEN $2::date AND $3::date
+             AND e.date <= $3::date AND e.date_to >= $2::date
         ),
         slots AS (
           SELECT gs AS slot_start,
@@ -223,14 +234,16 @@ export class AvailabilityService {
            -- Un bloqueo de agenda NO se puede sobreturnear: si el profesional no
            -- está, no hay a quién encajarle el paciente.
            AND NOT EXISTS (
-           -- Bloqueos parciales: media jornada, un rato para una reunión.
-           SELECT 1 FROM availability_exceptions e
+           -- Bloqueos parciales: media jornada, un rato para una reunión. Si el
+           -- bloqueo abarca varios días, esa franja se repite todos esos días.
+           SELECT 1 FROM availability_exceptions e,
+                 LATERAL generate_series(e.date, e.date_to, interval '1 day') d
             WHERE e.professional_id = $1
               AND e.kind = 'remove'
               AND e.start_time IS NOT NULL
               AND tstzrange(
-                    (e.date + e.start_time) AT TIME ZONE cfg.timezone,
-                    (e.date + COALESCE(e.end_time, time '23:59')) AT TIME ZONE cfg.timezone,
+                    (d::date + e.start_time) AT TIME ZONE cfg.timezone,
+                    (d::date + COALESCE(e.end_time, time '23:59')) AT TIME ZONE cfg.timezone,
                     '[)'
                   ) && tstzrange(s.slot_start, s.slot_end, '[)')
          )

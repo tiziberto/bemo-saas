@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue';
 import AppShell from '../../components/AppShell.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import UiIcon from '../../components/ui/UiIcon.vue';
-import { api } from '../../lib/api';
+import { api, errMessage } from '../../lib/api';
 import { ROLE_LABEL, TZ } from '../../lib/format';
 import type { Professional, Room } from '../../lib/types';
 import { useAuth } from '../../stores/auth';
@@ -15,6 +15,37 @@ const counts = ref({ professionals: 0, rooms: 0 });
 
 const clinicName = ref(auth.clinicName);
 
+// ── Especialidades del consultorio ──────────────────────────────────────────
+// Define qué puede elegir después cada profesional: no se puede asignar una que
+// la clínica no ofrezca. Por eso se edita acá y no en cada ficha.
+interface Especialidad { id: string; label: string }
+const catalogo = ref<Especialidad[]>([]);
+const elegidas = ref<string[]>([]);
+const guardandoEsp = ref(false);
+
+async function cargarEspecialidades() {
+  const [todas, mias] = await Promise.all([
+    api<Especialidad[]>('/specialties'),
+    api<Especialidad[]>('/clinic/specialties'),
+  ]);
+  catalogo.value = todas;
+  elegidas.value = mias.map((e) => e.id);
+}
+
+async function guardarEspecialidades() {
+  guardandoEsp.value = true;
+  try {
+    await api('/clinic/specialties', { method: 'PUT', body: { specialtyIds: elegidas.value } });
+    ui.success('Especialidades guardadas');
+  } catch (e) {
+    // El error explica cuál está en uso y por quién: se muestra tal cual.
+    ui.error('No se pudo guardar', errMessage(e));
+    await cargarEspecialidades();
+  } finally {
+    guardandoEsp.value = false;
+  }
+}
+
 function saveName() {
   // El nombre todavía no se puede editar en la API: lo guardamos localmente
   // para que la topbar diga cómo se llama el consultorio.
@@ -23,6 +54,7 @@ function saveName() {
 }
 
 onMounted(async () => {
+  cargarEspecialidades();
   const [profs, rooms] = await Promise.all([
     api<Professional[]>('/users/professionals').catch(() => []),
     api<Room[]>('/rooms').catch(() => []),
@@ -61,6 +93,27 @@ onMounted(async () => {
           <span class="text-sm muted">Consultorios</span>
           <span class="text-sm strong" style="margin-left:auto">{{ counts.rooms }}</span>
         </div>
+      </div>
+    </div>
+
+    <div class="card pad-sm mb-lg">
+      <h2 class="mb-xs">Especialidades del consultorio</h2>
+      <p class="muted text-sm mb-md">
+        Lo que se atiende acá. Cada profesional elige las suyas de esta lista, así
+        que si falta alguna hay que agregarla primero.
+      </p>
+      <div class="esp-grid">
+        <label v-for="e in catalogo" :key="e.id" class="esp-item">
+          <input type="checkbox" :value="e.id" v-model="elegidas" />
+          <span>{{ e.label }}</span>
+        </label>
+      </div>
+      <div class="row end mt-md">
+        <span class="muted text-xs spacer">{{ elegidas.length }} seleccionadas</span>
+        <button class="btn sm" :disabled="guardandoEsp" @click="guardarEspecialidades">
+          <span v-if="guardandoEsp" class="spinner"></span>
+          Guardar especialidades
+        </button>
       </div>
     </div>
 

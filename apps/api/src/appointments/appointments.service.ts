@@ -67,9 +67,10 @@ export class AppointmentsService {
     );
     if (found.rows[0]) return found.rows[0].id;
     const created = await client.query<{ id: string }>(
-      `INSERT INTO persons(clinic_id, dni, first_name, last_name, phone, email)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [clinicId, p.dni, p.firstName, p.lastName, p.phone ?? null, p.email ?? null],
+      `INSERT INTO persons(clinic_id, dni, first_name, last_name, phone, email, sex, birthdate)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [clinicId, p.dni, p.firstName, p.lastName, p.phone ?? null, p.email ?? null,
+       p.sex ?? null, p.birthdate ?? null],
     );
     return created.rows[0].id;
   }
@@ -126,6 +127,7 @@ export class AppointmentsService {
         const r = await c.query(
           `SELECT a.id, a.starts_at, a.ends_at, a.status, a.reason,
                   a.professional_id, a.room_id, a.person_id,
+                  a.is_overbook, a.arrived_at, a.called_at,
                   p.first_name, p.last_name, p.dni, p.phone
              FROM appointments a
              JOIN persons p ON p.id = a.person_id
@@ -145,8 +147,21 @@ export class AppointmentsService {
     return this.db.withTenant(
       { clinicId: user.clinicId, userId: user.userId },
       async (c) => {
+        // Las dos marcas de tiempo se ponen acá y no las manda el cliente: la
+        // espera que se muestra tiene que ser la del reloj del servidor, no la
+        // del navegador de quien apretó el botón.
+        //
+        // `COALESCE` para que volver a marcar no pise la marca original: si
+        // alguien aprieta "Llegó" dos veces, el paciente no vuelve a llegar.
         const r = await c.query(
-          'UPDATE appointments SET status = $2 WHERE id = $1 RETURNING id, status',
+          `UPDATE appointments
+              SET status     = $2,
+                  arrived_at = CASE WHEN $2 = 'waiting'     THEN COALESCE(arrived_at, now())
+                                    ELSE arrived_at END,
+                  called_at  = CASE WHEN $2 = 'in_progress' THEN COALESCE(called_at, now())
+                                    ELSE called_at END
+            WHERE id = $1
+        RETURNING id, status, arrived_at, called_at`,
           [id, status],
         );
         // Un turno de otra clínica no existe para RLS: 404, no un 200 con null.

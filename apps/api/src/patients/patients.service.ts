@@ -31,7 +31,10 @@ export class PatientsService {
   private async findOrCreatePerson(
     c: PoolClient,
     clinicId: string,
-    p: { dni: string; firstName: string; lastName: string; phone?: string; email?: string },
+    p: {
+      dni: string; firstName: string; lastName: string;
+      phone?: string; email?: string; sex?: string; birthdate?: string;
+    },
   ): Promise<string> {
     const found = await c.query<{ id: string }>(
       'SELECT id FROM persons WHERE dni = $1 AND deleted_at IS NULL',
@@ -39,9 +42,10 @@ export class PatientsService {
     );
     if (found.rows[0]) return found.rows[0].id;
     const created = await c.query<{ id: string }>(
-      `INSERT INTO persons(clinic_id, dni, first_name, last_name, phone, email)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [clinicId, p.dni, p.firstName, p.lastName, p.phone ?? null, p.email ?? null],
+      `INSERT INTO persons(clinic_id, dni, first_name, last_name, phone, email, sex, birthdate)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [clinicId, p.dni, p.firstName, p.lastName, p.phone ?? null, p.email ?? null,
+       p.sex ?? null, p.birthdate ?? null],
     );
     return created.rows[0].id;
   }

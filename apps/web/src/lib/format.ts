@@ -236,6 +236,8 @@ export const APPOINTMENT_STATUS: Record<
 > = {
   scheduled: { label: 'Agendado', chip: '', icon: 'calendar' },
   confirmed: { label: 'Confirmado', chip: 'success', icon: 'check-circle' },
+  waiting: { label: 'En espera', chip: 'warning', icon: 'clock' },
+  in_progress: { label: 'Atendiendo', chip: 'success', icon: 'user' },
   completed: { label: 'Atendido', chip: 'gray', icon: 'check' },
   cancelled: { label: 'Cancelado', chip: 'gray', icon: 'ban' },
   no_show: { label: 'No vino', chip: 'danger', icon: 'alert-triangle' },
@@ -264,3 +266,38 @@ export const WEEKDAYS = [
   'Sábado',
 ];
 export const WEEKDAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+/**
+ * Duraciones ofrecidas al configurar un horario y al dar un turno. Antes cada
+ * pantalla tenía su propia lista corta —una llegaba a 1 hora y la otra a 1:30—
+ * y no había forma de cargar un estudio largo o una cirugía.
+ */
+export const DURACIONES: { valor: number; texto: string }[] = [
+  { valor: 15, texto: '15 minutos' },
+  { valor: 20, texto: '20 minutos' },
+  { valor: 30, texto: '30 minutos' },
+  { valor: 45, texto: '45 minutos' },
+  { valor: 60, texto: '1 hora' },
+  { valor: 90, texto: '1 hora 30' },
+  { valor: 120, texto: '2 horas' },
+  { valor: 150, texto: '2 horas 30' },
+  { valor: 180, texto: '3 horas' },
+  { valor: 240, texto: '4 horas' },
+  { valor: 300, texto: '5 horas' },
+  { valor: 360, texto: '6 horas' },
+];
+
+/**
+ * "hace 12 min" a partir de una marca de tiempo. Se usa para la espera del
+ * paciente, así que se queda en minutos y horas: nadie mide una sala de espera
+ * en segundos ni en días.
+ */
+export function haceCuanto(desde: string | null | undefined, ahora = Date.now()): string {
+  if (!desde) return '';
+  const min = Math.max(0, Math.floor((ahora - new Date(desde).getTime()) / 60000));
+  if (min < 1) return 'recién llegó';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  const resto = min % 60;
+  return resto ? `hace ${h} h ${resto} min` : `hace ${h} h`;
+}

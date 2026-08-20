@@ -1645,3 +1645,33 @@ td.actions { text-align: right; white-space: nowrap; width: 1%; }
   color: var(--teal-ink);
   margin-left: 0.3em;
 }
+
+/* ── Selector de especialidades ─────────────────────────────────────────────
+   Cuarenta y dos opciones en una lista vertical son cuatro pantallas de scroll.
+   En columnas entran de un vistazo y se puede buscar con la vista. */
+.esp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: var(--s-xs) var(--s-md);
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--s-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.esp-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-sm);
+  font-size: 13.5px;
+  padding: 3px 4px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.esp-item:hover { background: var(--surface); }
+.esp-item input { flex: none; }
+
+/* Una sala desactivada sigue en la lista (los turnos viejos la referencian) pero
+   se lee como lo que es: algo que ya no se ofrece. */
+tr.inactivo td { opacity: 0.55; }

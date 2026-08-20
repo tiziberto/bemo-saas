@@ -11,6 +11,7 @@ import UiIcon from '../components/ui/UiIcon.vue';
 import UiModal from '../components/ui/UiModal.vue';
 import UiSkeleton from '../components/ui/UiSkeleton.vue';
 import { api, errMessage } from '../lib/api';
+import { parsearDni } from '../lib/dni';
 import { ENTRY_TYPE, fmtDate, fullName, waLink } from '../lib/format';
 import type { ClinicalEntry, Patient, Professional } from '../lib/types';
 import { useAuth } from '../stores/auth';
@@ -52,7 +53,29 @@ const typeFilter = ref('');
 const showNew = ref(false);
 const showImport = ref(false);
 const savingNew = ref(false);
-const newPatient = reactive({ dni: '', firstName: '', lastName: '', phone: '' });
+const newPatient = reactive({
+  dni: '', firstName: '', lastName: '', phone: '',
+  sex: '' as '' | 'F' | 'M' | 'X',
+  birthdate: '',
+});
+
+/**
+ * El lector de DNI escribe la cadena entera en el campo. Si lo que hay tiene
+ * pinta de escaneo, se reparte en los campos que corresponden; si no, queda el
+ * DNI tal cual lo tipearon.
+ */
+function leerDni() {
+  const datos = parsearDni(newPatient.dni);
+  if (!datos) return;
+  Object.assign(newPatient, {
+    dni: datos.dni,
+    firstName: datos.nombres,
+    lastName: datos.apellido,
+    sex: datos.sexo ?? '',
+    birthdate: datos.fechaNacimiento ?? '',
+  });
+  ui.success('DNI leído', `${datos.nombres} ${datos.apellido}`);
+}
 const importCsv = reactive({ text: '', busy: false });
 
 const entry = reactive({ type: 'note', content: '', entryDate: '' });
@@ -124,6 +147,8 @@ async function createPatient() {
         firstName: newPatient.firstName.trim(),
         lastName: newPatient.lastName.trim(),
         phone: newPatient.phone.trim() || undefined,
+        sex: newPatient.sex || undefined,
+        birthdate: newPatient.birthdate || undefined,
       },
     });
     ui.success('Paciente agregado', `${newPatient.firstName} ${newPatient.lastName}`);
@@ -495,7 +520,14 @@ onMounted(async () => {
         <div class="grid2">
           <div class="field">
             <label class="label">DNI</label>
-            <input v-model="newPatient.dni" required inputmode="numeric" />
+            <input
+              v-model="newPatient.dni"
+              required
+              inputmode="numeric"
+              placeholder="Tipealo o escaneá el DNI"
+              @input="leerDni"
+              @keydown.enter.prevent="leerDni"
+            />
           </div>
           <div class="field">
             <label class="label">Teléfono</label>

@@ -26,6 +26,50 @@ async function load() {
   }
 }
 
+// Editar en la misma fila: para cambiarle el nombre a una sala no hace falta
+// abrir un modal.
+const editando = ref('');
+const nombreEditado = ref('');
+const guardando = ref(false);
+
+function editar(r: Room) {
+  editando.value = r.id;
+  nombreEditado.value = r.name;
+}
+
+async function guardar(r: Room) {
+  const nombre = nombreEditado.value.trim();
+  if (!nombre || nombre === r.name) { editando.value = ''; return; }
+  guardando.value = true;
+  try {
+    await api(`/rooms/${r.id}`, { method: 'PATCH', body: { name: nombre } });
+    editando.value = '';
+    await load();
+    ui.success('Consultorio actualizado');
+  } catch (e) {
+    ui.error('No se pudo guardar', errMessage(e));
+  } finally {
+    guardando.value = false;
+  }
+}
+
+/**
+ * No hay borrado: los turnos ya dados apuntan a la sala y borrarla dejaría la
+ * agenda histórica sin poder decir dónde se atendió. Desactivar la saca de los
+ * selectores y deja el pasado intacto.
+ */
+async function alternarActivo(r: Room) {
+  guardando.value = true;
+  try {
+    await api(`/rooms/${r.id}`, { method: 'PATCH', body: { isActive: !r.is_active } });
+    await load();
+  } catch (e) {
+    ui.error('No se pudo cambiar', errMessage(e));
+  } finally {
+    guardando.value = false;
+  }
+}
+
 async function create() {
   saving.value = true;
   try {
@@ -62,12 +106,35 @@ onMounted(load);
       <div v-else-if="rooms.length" class="table-wrap">
         <table>
           <tbody>
-            <tr v-for="r in rooms" :key="r.id">
+            <tr v-for="r in rooms" :key="r.id" :class="{ inactivo: !r.is_active }">
               <td>
                 <div class="row tight">
                   <UiIcon name="door" size="16" style="color:var(--muted-2)" />
-                  <span class="strong">{{ r.name }}</span>
+                  <input
+                    v-if="editando === r.id"
+                    v-model="nombreEditado"
+                    class="sm"
+                    style="max-width:280px"
+                    @keydown.enter.prevent="guardar(r)"
+                    @keydown.esc="editando = ''"
+                  />
+                  <span v-else class="strong">{{ r.name }}</span>
+                  <span v-if="!r.is_active" class="chip gray">Inactivo</span>
                 </div>
+              </td>
+              <td style="text-align:right;white-space:nowrap">
+                <template v-if="editando === r.id">
+                  <button class="btn sm" :disabled="guardando" @click="guardar(r)">Guardar</button>
+                  <button class="btn ghost sm" @click="editando = ''">Cancelar</button>
+                </template>
+                <template v-else>
+                  <button class="btn secondary sm" @click="editar(r)">
+                    <UiIcon name="edit" size="14" /> Editar
+                  </button>
+                  <button class="btn ghost sm" :disabled="guardando" @click="alternarActivo(r)">
+                    {{ r.is_active ? 'Desactivar' : 'Activar' }}
+                  </button>
+                </template>
               </td>
             </tr>
           </tbody>

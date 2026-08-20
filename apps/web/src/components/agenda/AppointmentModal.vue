@@ -1,15 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api, errMessage } from '../../lib/api';
-import {
-  APPOINTMENT_STATUS,
-  capitalize,
-  fmtDayLong,
-  fmtTime,
-  fullName,
-  waLink,
-} from '../../lib/format';
+import { APPOINTMENT_STATUS, capitalize, fmtDayLong, fmtTime, fullName, haceCuanto, waLink } from '../../lib/format';
 import { useAuth } from '../../stores/auth';
 import { useUi } from '../../stores/ui';
 import type { Appointment, Professional, Room } from '../../lib/types';
@@ -27,6 +20,28 @@ const emit = defineEmits<{ close: []; updated: [] }>();
 const auth = useAuth();
 const ui = useUi();
 const router = useRouter();
+
+/**
+ * Cuánto lleva esperando. Se recalcula cada 30 s: un número que dice "hace 5 min"
+ * y se queda quieto diez minutos es peor que no mostrarlo.
+ */
+const ahora = ref(Date.now());
+let reloj: ReturnType<typeof setInterval> | null = null;
+onMounted(() => { reloj = setInterval(() => (ahora.value = Date.now()), 30_000); });
+onBeforeUnmount(() => { if (reloj) clearInterval(reloj); });
+
+const esperaTexto = computed(() => {
+  const a = props.appt.arrived_at;
+  if (!a) return '';
+  // Ya pasó: la espera queda congelada en lo que efectivamente esperó.
+  if (props.appt.called_at) {
+    const min = Math.round(
+      (new Date(props.appt.called_at).getTime() - new Date(a).getTime()) / 60000,
+    );
+    return `Esperó ${min} min`;
+  }
+  return `Esperando ${haceCuanto(a, ahora.value).replace('hace ', '')}`;
+});
 const busy = ref('');
 
 const canEdit = computed(() => auth.isAdmin || auth.isReceptionist);
@@ -44,9 +59,13 @@ const actions = computed(() => {
   const all = [
     // `primary` = lo que se espera hacer desde ese estado. Con cinco botones grises
     // iguales no se distinguía la acción del día del resto.
-    { status: 'confirmed', label: 'Confirmar', icon: 'check-circle', show: s === 'scheduled', primary: true },
-    { status: 'completed', label: 'Marcar atendido', icon: 'check', show: s === 'scheduled' || s === 'confirmed', primary: s === 'confirmed' },
-    { status: 'no_show', label: 'No vino', icon: 'alert-triangle', show: s === 'scheduled' || s === 'confirmed', primary: false },
+    { status: 'confirmed', label: 'Confirmar', icon: 'check-circle', show: s === 'scheduled', primary: false },
+    // Recepción marca que llegó; el profesional lo llama a pasar. Entre esas dos
+    // marcas es lo que el paciente esperó de verdad.
+    { status: 'waiting', label: 'Llegó', icon: 'user', show: s === 'scheduled' || s === 'confirmed', primary: true },
+    { status: 'in_progress', label: 'Atender', icon: 'check-circle', show: s === 'waiting', primary: true },
+    { status: 'completed', label: 'Marcar atendido', icon: 'check', show: s === 'in_progress' || s === 'confirmed', primary: s === 'in_progress' },
+    { status: 'no_show', label: 'No vino', icon: 'alert-triangle', show: s === 'scheduled' || s === 'confirmed' || s === 'waiting', primary: false },
     { status: 'scheduled', label: 'Reactivar', icon: 'refresh', show: s === 'cancelled' || s === 'no_show', primary: true },
   ];
   return all.filter((a) => a.show);
@@ -58,9 +77,9 @@ async function setStatus(status: string) {
     await api(`/appointments/${props.appt.id}/status`, { method: 'PATCH', body: { status } });
     ui.success('Turno actualizado', APPOINTMENT_STATUS[status]?.label);
     emit('updated');
-    // Atendido = el paciente ya pasó: lo que sigue es cargar la evolución. Se abre
-    // su historia en vez de dejar al profesional de vuelta en la agenda.
-    if (status === 'completed') {
+    // Al llamarlo a pasar es cuando se escribe la evolución, no después: se abre
+    // la historia del paciente en ese momento.
+    if (status === 'in_progress') {
       emit('close');
       router.push({ path: '/pacientes', query: { id: props.appt.person_id, nueva: '1' } });
     }
@@ -91,6 +110,12 @@ async function cancel() {
   >
     <div class="row tight mb-lg">
       <StatusChip :status="appt.status" />
+      <span v-if="appt.is_overbook" class="chip warning" title="Se cargó encima de otro turno">
+        <UiIcon name="alert-triangle" size="12" />Sobreturno
+      </span>
+      <span v-if="esperaTexto" class="chip warning">
+        <UiIcon name="clock" size="12" />{{ esperaTexto }}
+      </span>
       <span class="chip gray"><UiIcon name="user" size="12" />{{ prof }}</span>
       <span class="chip gray"><UiIcon name="door" size="12" />{{ room }}</span>
     </div>

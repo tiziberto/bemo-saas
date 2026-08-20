@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AuthLayout from '../components/AuthLayout.vue';
 import UiIcon from '../components/ui/UiIcon.vue';
-import { errMessage } from '../lib/api';
+import { api, errMessage } from '../lib/api';
 import { useAuth } from '../stores/auth';
 import { useUi } from '../stores/ui';
 
@@ -12,6 +12,19 @@ const ui = useUi();
 const router = useRouter();
 
 const clinicName = ref('');
+
+/**
+ * Especialidades al registrarse. Es opcional: si alguien no las carga acá, las
+ * agrega después en Configuración › Clínica. Bloquear el registro por esto sería
+ * ponerle una barrera a lo único que importa en ese momento, que es entrar.
+ */
+interface Especialidad { id: string; label: string }
+const catalogo = ref<Especialidad[]>([]);
+const especialidades = ref<string[]>([]);
+onMounted(async () => {
+  // El catálogo es público para poder mostrarlo antes de tener sesión.
+  catalogo.value = await api<Especialidad[]>('/specialties').catch(() => []);
+});
 const fullName = ref('');
 const email = ref('');
 const password = ref('');
@@ -42,6 +55,15 @@ async function submit() {
       email: email.value.trim(),
       password: password.value,
     });
+    // Recién acá hay sesión, así que las especialidades van después del alta.
+    if (especialidades.value.length) {
+      await api('/clinic/specialties', {
+        method: 'PUT',
+        body: { specialtyIds: especialidades.value },
+      }).catch(() => {
+        ui.error('La clínica se creó, pero no las especialidades', 'Cargalas en Configuración › Clínica.');
+      });
+    }
     ui.success('Clínica creada', 'Ahora cargá consultorios y horarios.');
     router.push('/hoy');
   } catch (e) {
@@ -64,6 +86,16 @@ async function submit() {
         <div class="field">
           <label class="label" for="clinic">Nombre del consultorio</label>
           <input id="clinic" v-model="clinicName" required autofocus placeholder="Consultorio Odontológico Norte" />
+        </div>
+        <div class="field">
+          <label class="label">Especialidades <span class="muted text-xs">(opcional)</span></label>
+          <p class="muted text-xs mb-sm">Qué se atiende. Después se puede cambiar.</p>
+          <div class="esp-grid" style="max-height:180px">
+            <label v-for="e in catalogo" :key="e.id" class="esp-item">
+              <input type="checkbox" :value="e.id" v-model="especialidades" />
+              <span>{{ e.label }}</span>
+            </label>
+          </div>
         </div>
         <div class="field">
           <label class="label" for="name">Tu nombre</label>
