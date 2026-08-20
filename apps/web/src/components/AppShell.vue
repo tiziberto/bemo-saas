@@ -50,6 +50,7 @@ const admin = computed<NavItem[]>(() =>
       icon: 'clock',
       show: auth.isAdmin || auth.isProfessional,
     },
+    { to: '/configuracion/preinformes', label: 'Preinformes', icon: 'file-text', show: auth.isProfessional },
     { to: '/configuracion/clinica', label: 'Clínica', icon: 'building', show: auth.isAdmin },
     {
       to: '/configuracion/suscripcion',

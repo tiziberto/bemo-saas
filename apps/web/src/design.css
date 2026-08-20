@@ -1696,3 +1696,19 @@ tr.inactivo td { opacity: 0.55; }
   border-radius: var(--r-md);
   background: var(--surface-2);
 }
+
+/* En modo atención la lista de pacientes no se muestra: la única columna ocupa
+   todo el ancho en vez de quedar pegada a la izquierda con un hueco de 320px. */
+.split.solo-paciente { grid-template-columns: 1fr; }
+.alert.atendiendo { display: flex; align-items: center; gap: var(--s-sm); }
+
+/* Barra del selector de preinformes, arriba del editor de la entrada. */
+.pre-barra {
+  display: flex;
+  align-items: center;
+  gap: var(--s-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-sm);
+  padding-bottom: var(--s-sm);
+  border-bottom: 1px dashed var(--line);
+}

@@ -41,6 +41,11 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Horarios de atención', roles: ['admin', 'professional'] },
   },
   {
+    path: '/configuracion/preinformes',
+    component: () => import('./views/settings/TemplatesView.vue'),
+    meta: { title: 'Preinformes', roles: ['professional'] },
+  },
+  {
     path: '/configuracion/clinica',
     component: () => import('./views/settings/ClinicView.vue'),
     meta: { title: 'Clínica', roles: ['admin'] },

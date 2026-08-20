@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
 import AttachmentsPanel from '../components/patients/AttachmentsPanel.vue';
@@ -26,9 +26,46 @@ const route = useRoute();
  * Lo que sigue es escribir la evolución, así que se deja el cursor puesto en el
  * formulario en vez de obligar a buscarlo en la página.
  */
+/**
+ * Modo atención: se llega desde "Atender" en la agenda, con el paciente ya
+ * elegido. Se esconde la lista de pacientes porque no hay nada que elegir —
+ * el paciente está sentado adelante— y así la historia se lee sin competencia.
+ */
+const modoAtencion = ref(false);
+
+function salirDeAtencion() {
+  modoAtencion.value = false;
+  router.replace({ query: {} });
+}
+
+// ── Preinformes ─────────────────────────────────────────────────────────────
+interface Plantilla { id: string; title: string; type: string; content: string; own: boolean }
+const plantillas = ref<Plantilla[]>([]);
+const plantillaElegida = ref('');
+const plantillasSistema = computed(() => plantillas.value.filter((p) => !p.own));
+const plantillasPropias = computed(() => plantillas.value.filter((p) => p.own));
+
+/**
+ * Inserta el preinforme al final de lo escrito, nunca lo pisa: alguien puede
+ * haber empezado a escribir y después acordarse de la plantilla.
+ */
+function insertarPlantilla() {
+  const p = plantillas.value.find((x) => x.id === plantillaElegida.value);
+  // El reset va en el tick siguiente. Hacerlo acá deja el ref igual que antes
+  // desde el punto de vista de Vue —'' → elegido → '' en el mismo handler— así
+  // que no repinta el select, queda mostrando la opción elegida y volver a
+  // elegir la misma no dispara `change`.
+  nextTick(() => (plantillaElegida.value = ''));
+  if (!p) return;
+  entry.type = p.type;
+  entry.content = entry.content.trim() ? `${entry.content.trimEnd()}\n\n${p.content}` : p.content;
+  requestAnimationFrame(() => entryBox.value?.focus());
+}
+
 const entryBox = ref<HTMLTextAreaElement | null>(null);
 function enfocarNuevaEntrada() {
   if (!route.query.nueva) return;
+  modoAtencion.value = true;
   requestAnimationFrame(() => {
     entryBox.value?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     entryBox.value?.focus();
@@ -244,6 +281,11 @@ watch(
 );
 
 onMounted(async () => {
+  if (auth.isProfessional) {
+    api<Plantilla[]>('/clinical-templates')
+      .then((r) => (plantillas.value = r))
+      .catch(() => (plantillas.value = []));
+  }
   await loadPatients();
   professionals.value = await api<Professional[]>('/users/professionals').catch(() => []);
 });
@@ -265,11 +307,20 @@ onMounted(async () => {
       </template>
     </PageHeader>
 
+    <div v-if="modoAtencion" class="alert info atendiendo">
+      <UiIcon name="user" size="16" />
+      <span class="spacer">
+        Estás atendiendo. Se muestra sólo este paciente para que la historia se lea sin ruido.
+      </span>
+      <button class="btn ghost sm" @click="salirDeAtencion">Ver todos los pacientes</button>
+    </div>
+
     <div v-if="error" class="alert err"><UiIcon name="alert-circle" size="16" />{{ error }}</div>
 
-    <div class="split">
-      <!-- Columna izquierda: buscar y elegir -->
-      <div class="card flush" style="position:sticky;top:76px">
+    <div class="split" :class="{ 'solo-paciente': modoAtencion }">
+      <!-- Columna izquierda: buscar y elegir. En modo atención no va: el
+           profesional está con un paciente adelante, no eligiendo de una lista. -->
+      <div v-if="!modoAtencion" class="card flush" style="position:sticky;top:76px">
         <div class="card-body" style="padding:12px">
           <SearchInput v-model="search" placeholder="Nombre, DNI o teléfono…" />
           <div class="segmented mt-sm w-full" style="display:flex">
@@ -418,6 +469,21 @@ onMounted(async () => {
                 </button>
                 <div class="spacer"></div>
                 <input type="date" v-model="entry.entryDate" style="width:auto" title="Fecha de la entrada (por defecto hoy)" />
+              </div>
+              <div v-if="plantillas.length" class="pre-barra">
+                <label class="label" style="margin:0">Preinformes</label>
+                <select v-model="plantillaElegida" @change="insertarPlantilla" style="max-width:260px">
+                  <option value="">Elegir uno…</option>
+                  <optgroup label="Del sistema">
+                    <option v-for="p in plantillasSistema" :key="p.id" :value="p.id">{{ p.title }}</option>
+                  </optgroup>
+                  <optgroup v-if="plantillasPropias.length" label="Míos">
+                    <option v-for="p in plantillasPropias" :key="p.id" :value="p.id">{{ p.title }}</option>
+                  </optgroup>
+                </select>
+                <router-link class="btn ghost sm" to="/configuracion/preinformes">
+                  Administrar
+                </router-link>
               </div>
               <textarea
                 ref="entryBox"
