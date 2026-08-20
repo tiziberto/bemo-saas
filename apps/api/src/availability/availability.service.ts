@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { DbService } from '../database/db.service';
 import { AuthUser } from '../security/current-user.decorator';
 import { CreateBlockDto, CreateExceptionDto } from './dto';
@@ -25,6 +30,14 @@ export class AvailabilityService {
   }
 
   createBlock(user: AuthUser, dto: CreateBlockDto) {
+    // El CHECK de la base ya lo impide, pero salía como 500. Un horario mal
+    // cargado es un error de quien lo carga, no una falla del sistema.
+    if (dto.endTime <= dto.startTime) {
+      throw new BadRequestException({
+        message: 'El horario de fin tiene que ser posterior al de inicio.',
+        code: 'RANGO_HORARIO_INVALIDO',
+      });
+    }
     const professionalId = this.resolveProfessional(user, dto.professionalId);
     return this.db.withTenant(this.ctx(user), async (c) => {
       const r = await c.query(
@@ -88,6 +101,19 @@ export class AvailabilityService {
    * que no se atiende, un sábado extra. Sin horario = el día completo.
    */
   createException(user: AuthUser, dto: CreateExceptionDto) {
+    // Mismo caso que el bloque: el CHECK de la base salía como 500.
+    if (dto.dateTo && dto.dateTo < dto.date) {
+      throw new BadRequestException({
+        message: 'El último día del bloqueo no puede ser anterior al primero.',
+        code: 'RANGO_FECHAS_INVALIDO',
+      });
+    }
+    if (dto.startTime && dto.endTime && dto.endTime <= dto.startTime) {
+      throw new BadRequestException({
+        message: 'La hora de fin tiene que ser posterior a la de inicio.',
+        code: 'RANGO_HORARIO_INVALIDO',
+      });
+    }
     const professionalId = this.resolveProfessional(user, dto.professionalId);
     return this.db.withTenant(this.ctx(user), async (c) => {
       const r = await c.query(

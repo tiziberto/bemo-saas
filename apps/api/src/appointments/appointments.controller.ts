@@ -41,7 +41,10 @@ export class AppointmentsController {
   }
 
   @Patch(':id/status')
-  @Roles('admin', 'receptionist')
+  // El profesional tiene que poder marcar "Llegó" y "Atender" de SUS turnos:
+  // sin esto la sala de espera no la puede operar quien atiende. El servicio se
+  // encarga de que no toque los de otro.
+  @Roles('admin', 'receptionist', 'professional')
   updateStatus(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,

@@ -3,6 +3,7 @@ import { createTestApp, http } from './utils/harness';
 import {
   addMember,
   atArgentina,
+  book,
   createRoom,
   createWeeklyAvailability,
   futureDate,
@@ -147,11 +148,15 @@ describe('Matriz de permisos por rol', () => {
       expected: { admin: 201, professional: 403, receptionist: 201 },
     },
     {
+      // El profesional SÍ puede: sin esto no puede marcar "Llegó" ni "Atender"
+      // de sus propios turnos y la sala de espera la tendría que operar
+      // recepción. El turno de esta matriz es suyo. Que no pueda tocar los de
+      // OTRO profesional se prueba aparte, más abajo.
       name: 'PATCH /appointments/:id/status',
       method: 'patch',
       path: () => `/v1/appointments/${apptId}/status`,
       body: () => ({ status: 'confirmed' }),
-      expected: { admin: 200, professional: 403, receptionist: 200 },
+      expected: { admin: 200, professional: 200, receptionist: 200 },
     },
     {
       name: 'GET /patients',
@@ -212,6 +217,23 @@ describe('Matriz de permisos por rol', () => {
       })
       .expect(403);
     expect(res.body.code).toBe('FORBIDDEN_PROFESSIONAL');
+  });
+
+  it('un profesional no puede cambiar el estado del turno de otro', async () => {
+    // La contracara de habilitarle el PATCH: RLS acota a la clínica pero no al
+    // profesional, así que sin el filtro del servicio cualquiera del equipo
+    // podía marcar como atendido el turno de otro.
+    const otro = await addMember(app, admin, 'professional', 'Prof Ajeno');
+    await createWeeklyAvailability(app, admin, otro.userId);
+    const ajeno = await book(app, admin, {
+      professionalId: otro.userId,
+      startsAt: atArgentina(futureDate(95), '09:00'),
+    });
+    await http(app)
+      .patch(`/v1/appointments/${ajeno.id}/status`)
+      .set('authorization', `Bearer ${prof.token}`)
+      .send({ status: 'completed' })
+      .expect(404);
   });
 
   it('el admin sí puede cargar la disponibilidad de cualquier profesional', async () => {

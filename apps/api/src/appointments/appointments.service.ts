@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { DbService } from '../database/db.service';
 import { AuthUser } from '../security/current-user.decorator';
@@ -6,6 +11,22 @@ import { CreateAppointmentDto, PersonInput } from './dto';
 
 function mapConflict(err: unknown): unknown {
   const e = err as { code?: string; constraint?: string };
+
+  // 23503 = violación de clave foránea. Con las FK compuestas por clínica esto
+  // significa que el profesional, la sala o la persona no son de este
+  // consultorio. Sin traducirlo salía como 500, y algo que no existe para vos es
+  // un 404, no una falla del sistema.
+  if (e?.code === '23503' && e.constraint?.includes('misma_clinica')) {
+    const que = e.constraint.includes('_prof_')
+      ? 'El profesional'
+      : e.constraint.includes('_room_')
+        ? 'El consultorio'
+        : 'El paciente';
+    return new NotFoundException({
+      message: `${que} no es de este consultorio.`,
+      code: 'FUERA_DE_LA_CLINICA',
+    });
+  }
   if (e?.code === '23P01') {
     // Los dos códigos significan "ese lugar ya está tomado": son justamente los
     // que el frontend puede reintentar como sobreturno tras una segunda confirmación.
@@ -76,6 +97,21 @@ export class AppointmentsService {
   }
 
   async book(user: AuthUser, dto: CreateAppointmentDto) {
+    // Un turno para 2020 es siempre un error de tipeo. Se corta antes de tocar la
+    // base, con un mensaje que dice qué pasó.
+    //
+    // El corte es el día, no el instante: recepción carga seguido a alguien que
+    // acaba de entrar sin turno, y la hora ya pasó hace veinte minutos. Eso es
+    // legítimo; el año equivocado no.
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    if (new Date(dto.startsAt) < hoy) {
+      throw new BadRequestException({
+        message: 'No se puede agendar un turno en un día que ya pasó.',
+        code: 'FECHA_PASADA',
+      });
+    }
+
     const duration = dto.durationMinutes ?? 30;
     const endsAt = new Date(
       new Date(dto.startsAt).getTime() + duration * 60000,
@@ -155,7 +191,18 @@ export class AppointmentsService {
     );
   }
 
+  /**
+   * Cambia el estado. Un profesional sólo puede tocar SUS turnos: RLS acota a la
+   * clínica pero no al profesional, así que sin este filtro cualquiera del equipo
+   * podría marcar como atendido el turno de otro.
+   *
+   * Admin y recepción sí operan sobre toda la agenda: es su trabajo.
+   */
   updateStatus(user: AuthUser, id: string, status: string) {
+    const soloPropios =
+      user.roles.includes('professional') &&
+      !user.roles.includes('admin') &&
+      !user.roles.includes('receptionist');
     return this.db.withTenant(
       { clinicId: user.clinicId, userId: user.userId },
       async (c) => {
@@ -173,8 +220,9 @@ export class AppointmentsService {
                   called_at  = CASE WHEN $2 = 'in_progress' THEN COALESCE(called_at, now())
                                     ELSE called_at END
             WHERE id = $1
+              AND ($3::boolean IS NOT TRUE OR professional_id = app_current_user())
         RETURNING id, status, arrived_at, called_at`,
-          [id, status],
+          [id, status, soloPropios],
         );
         // Un turno de otra clínica no existe para RLS: 404, no un 200 con null.
         // Devolver null silenciaba el intento y dejaba al cliente creyendo que

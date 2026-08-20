@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { DbService } from '../database/db.service';
 import { AuthUser } from '../security/current-user.decorator';
@@ -117,6 +117,22 @@ export class SpecialtiesService {
    */
   setProfesional(user: AuthUser, userId: string, ids: string[]) {
     return this.db.withTenant(this.ctx(user), async (c) => {
+      // Que el profesional sea de ESTA clínica. La clave foránea compuesta ya lo
+      // impide a nivel base, pero sin este chequeo la respuesta era un 200 con
+      // lista vacía: se reportaba éxito sobre un usuario que no existe acá.
+      const existe = await c.query(
+        `SELECT 1 FROM users u
+           JOIN user_roles ur ON ur.user_id = u.id
+          WHERE u.id = $1 AND ur.role = 'professional'`,
+        [userId],
+      );
+      if (!existe.rows[0]) {
+        throw new NotFoundException({
+          message: 'Ese profesional no es de este consultorio.',
+          code: 'PROFESSIONAL_NOT_FOUND',
+        });
+      }
+
       const ofrecidas = await c.query<{ id: string }>(
         'SELECT specialty_id AS id FROM clinic_specialties',
       );

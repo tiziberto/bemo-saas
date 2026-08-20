@@ -4,6 +4,7 @@ import {
   addMember,
   atArgentina,
   book,
+  bookRequest,
   createPatient,
   createRoom,
   createWeeklyAvailability,
@@ -223,5 +224,37 @@ describe('Aislamiento entre clínicas', () => {
     expect(equipoB.body.map((u: { email: string }) => u.email)).not.toContain(
       res.body.email,
     );
+  });
+
+// ── Escritura cruzada ─────────────────────────────────────────────────────
+  // RLS impide LEER lo de otra clínica, pero no impedía ESCRIBIR una fila propia
+  // que apunte a algo ajeno. Encontrado probando el sistema: la clínica B podía
+  // agendar con el profesional de A, y como los EXCLUDE anti-solapamiento son
+  // por professional_id a nivel tabla, le ocupaba la agenda de verdad. A veía el
+  // horario libre y recibía 409 al intentar usarlo. Lo cierran las FK compuestas.
+
+  it('B no puede agendar con un profesional de A', async () => {
+    const res = await bookRequest(app, bAdmin, {
+      professionalId: aProf.userId,
+      startsAt: atArgentina(futureDate(90), '09:00'),
+    }).expect(404);
+    expect(res.body.code).toBe('FUERA_DE_LA_CLINICA');
+  });
+
+  it('B no puede agendar en una sala de A', async () => {
+    const res = await bookRequest(app, bAdmin, {
+      professionalId: bProf.userId,
+      roomId: a.roomId,
+      startsAt: atArgentina(futureDate(91), '09:00'),
+    }).expect(404);
+    expect(res.body.code).toBe('FUERA_DE_LA_CLINICA');
+  });
+
+  it('B no puede asignar especialidades a un profesional de A', async () => {
+    await http(app)
+      .put(`/v1/users/${aProf.userId}/specialties`)
+      .set('authorization', `Bearer ${bAdmin.token}`)
+      .send({ specialtyIds: [] })
+      .expect(404);
   });
 });
