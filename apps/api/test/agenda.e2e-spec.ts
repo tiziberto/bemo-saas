@@ -72,6 +72,61 @@ describe('Agenda: huecos, choques y concurrencia', () => {
     expect(res.body.code).toBe('PROFESSIONAL_SLOT_TAKEN');
   });
 
+  // ── La ficha del profesional ──────────────────────────────────────────────
+  // Agendar tiene que dejar al paciente en la lista del profesional del turno.
+  // Antes no pasaba: `patient_links` exige `professional_id = app_current_user()`
+  // y recepción, que es quien agenda, no es ese profesional.
+
+  it('agendar deja al paciente en la lista del profesional, aunque agende otro', async () => {
+    const date = futureDate(80);
+    const antes = await http(app)
+      .get('/v1/patients')
+      .set('authorization', `Bearer ${profA.token}`)
+      .expect(200);
+
+    // Lo agenda el ADMIN, no el profesional.
+    await book(app, admin, {
+      professionalId: profA.userId,
+      startsAt: atArgentina(date, '09:00'),
+      dni: '46111222',
+      firstName: 'Recién',
+      lastName: 'Agendado',
+    });
+
+    const despues = await http(app)
+      .get('/v1/patients')
+      .set('authorization', `Bearer ${profA.token}`)
+      .expect(200);
+
+    expect(despues.body.length).toBe(antes.body.length + 1);
+    expect(despues.body.some((p: { dni: string }) => p.dni === '46111222')).toBe(true);
+  });
+
+  it('el paciente NO aparece en la lista de otro profesional', async () => {
+    const otro = await http(app)
+      .get('/v1/patients')
+      .set('authorization', `Bearer ${profB.token}`)
+      .expect(200);
+    expect(otro.body.some((p: { dni: string }) => p.dni === '46111222')).toBe(false);
+  });
+
+  it('agendar dos veces con el mismo profesional no duplica la ficha', async () => {
+    const date = futureDate(81);
+    await book(app, admin, {
+      professionalId: profA.userId,
+      startsAt: atArgentina(date, '10:00'),
+      dni: '46111222',
+      firstName: 'Recién',
+      lastName: 'Agendado',
+    });
+    const lista = await http(app)
+      .get('/v1/patients')
+      .set('authorization', `Bearer ${profA.token}`)
+      .expect(200);
+    const cuantos = lista.body.filter((p: { dni: string }) => p.dni === '46111222').length;
+    expect(cuantos).toBe(1);
+  });
+
   // ── Sobreturno ────────────────────────────────────────────────────────────
   // El choque accidental tiene que seguir siendo imposible; el deliberado, posible
   // pero explícito. Los tres tests de abajo cubren esa frontera.

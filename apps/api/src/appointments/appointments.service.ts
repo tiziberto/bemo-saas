@@ -107,6 +107,18 @@ export class AppointmentsService {
               dto.allowOverbook === true,
             ],
           );
+          // El paciente pasa a figurar en la lista del profesional con el que se
+          // agendó. Va acá y no en `findOrCreatePerson` porque el vínculo es con
+          // el profesional del TURNO, no con quien lo está cargando: recepción
+          // agenda todo el día y no atiende a nadie.
+          //
+          // Es idempotente: agendar el quinto turno con el mismo profesional no
+          // duplica la ficha.
+          await c.query('SELECT link_patient_to_professional($1, $2)', [
+            personId,
+            dto.professionalId,
+          ]);
+
           return r.rows[0];
         },
       );

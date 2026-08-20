@@ -55,7 +55,9 @@ describe('Reportes del consultorio', () => {
         .expect(200);
     }
 
-    // Dos pacientes nuevos en la lista del profesional.
+    // Dos pacientes cargados a mano por el profesional. Los 4 de arriba también
+    // cuentan como suyos: agendar un turno suma al paciente a la lista del
+    // profesional del turno.
     await createPatient(app, prof, { dni: uniqueDni() });
     await createPatient(app, prof, { dni: uniqueDni() });
   });
@@ -98,13 +100,17 @@ describe('Reportes del consultorio', () => {
   it('cuenta los pacientes nuevos por la fecha en que se sumaron a la lista', async () => {
     // Los turnos de este test están en el futuro, pero los pacientes se dieron
     // de alta hoy: el período de "nuevos" es el de la fecha de alta.
+    //
+    // Son 6: los 4 que entraron por un turno más los 2 cargados a mano. Antes
+    // eran 2 porque agendar no sumaba a nadie a la lista del profesional, que
+    // es justamente lo que se arregló.
     const hoy = futureDate(0);
     const res = await http(app)
       .get(`/v1/reports/summary?from=${futureDate(-1)}&to=${futureDate(1)}`)
       .set('authorization', `Bearer ${admin.token}`)
       .expect(200);
     const fila = res.body.find((r: any) => r.professional_id === prof.userId);
-    expect(fila.new_patients).toBe(2);
+    expect(fila.new_patients).toBe(6);
     expect(hoy).toBeTruthy();
   });
 
