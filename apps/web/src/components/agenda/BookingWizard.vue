@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { api, errMessage, qs, type ApiError } from '../../lib/api';
-import { parsearDni } from '../../lib/dni';
+import { parsearDni, type DatosDni } from '../../lib/dni';
 import { DURACIONES, WEEKDAYS_SHORT, addDays, capitalize, fmtDayLong, fmtDayShort, fmtTime, minutesOfDay, todayISO } from '../../lib/format';
 import type { Professional, Room, Slot } from '../../lib/types';
 import { useUi } from '../../stores/ui';
@@ -67,9 +67,9 @@ const person = reactive({
  * pinta de escaneo se completa todo solo y se busca; si no, sigue siendo el DNI
  * o el nombre que alguien escribió a mano.
  */
-function alEscribirEnBusqueda() {
+function leerDelDocumento(): DatosDni | null {
   const datos = parsearDni(term.value);
-  if (!datos) return false;
+  if (!datos) return null;
   term.value = datos.dni;
   Object.assign(person, {
     id: '',
@@ -80,20 +80,23 @@ function alEscribirEnBusqueda() {
     birthdate: datos.fechaNacimiento ?? '',
   });
   ui.success('DNI leído', `${datos.nombres} ${datos.apellido}`);
-  return true;
+  return datos;
 }
 
-/** Enter en el campo: puede venir del lector o de alguien que aprieta Enter. */
+/**
+ * Enter en el campo, o el botón Buscar. Puede venir del lector o de alguien que
+ * escribió a mano. Lo que el documento trajo se pasa a la búsqueda para que, si
+ * el paciente no existe, el alta arranque con esos datos ya cargados.
+ */
 function buscarOLeer() {
   // Si era un escaneo, igual se busca: puede que el paciente ya exista.
-  alEscribirEnBusqueda();
-  search();
+  search(leerDelDocumento());
 }
 
 /** Si el texto tiene letras es un nombre; si no, un DNI. */
 const isName = computed(() => /[a-záéíóúñ]/i.test(term.value));
 
-async function search() {
+async function search(escaneado: DatosDni | null = null) {
   const value = term.value.trim();
   if (!value) return;
   searching.value = true;
@@ -105,8 +108,20 @@ async function search() {
     searched.value = true;
     if (matches.value.length === 1) choosePerson(matches.value[0]);
     else if (!matches.value.length && !isName.value) {
-      // No está: se precarga el DNI para darlo de alta sin volver a escribirlo.
-      Object.assign(person, { id: '', dni: value, firstName: '', lastName: '', phone: '' });
+      // No está: se precarga lo que se sepa para darlo de alta sin reescribirlo.
+      //
+      // Si vino de un escaneo, el documento ya trajo nombre, apellido, sexo y
+      // fecha de nacimiento. Antes acá se pisaba todo con vacío y había que
+      // tipear a mano lo que el lector acababa de leer.
+      Object.assign(person, {
+        id: '',
+        dni: escaneado?.dni ?? value,
+        firstName: escaneado?.nombres ?? '',
+        lastName: escaneado?.apellido ?? '',
+        phone: '',
+        sex: escaneado?.sexo ?? '',
+        birthdate: escaneado?.fechaNacimiento ?? '',
+      });
     }
   } catch (e) {
     ui.error('No se pudo buscar', errMessage(e));
@@ -377,7 +392,7 @@ onMounted(() => {
             placeholder="30111222 — o el nombre, si no lo sabés"
             @keydown.enter.prevent="buscarOLeer"
           />
-          <button class="btn secondary" :disabled="searching || !term.trim()" @click="search">
+          <button class="btn secondary" :disabled="searching || !term.trim()" @click="buscarOLeer()">
             <span v-if="searching" class="spinner"></span>
             <UiIcon v-else name="search" size="15" />
             Buscar
