@@ -1647,31 +1647,52 @@ td.actions { text-align: right; white-space: nowrap; width: 1%; }
 }
 
 /* ── Selector de especialidades ─────────────────────────────────────────────
-   Cuarenta y dos opciones en una lista vertical son cuatro pantallas de scroll.
-   En columnas entran de un vistazo y se puede buscar con la vista. */
-.esp-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: var(--s-xs) var(--s-md);
-  max-height: 320px;
+   Chips que se tocan, no checkboxes. Dos razones: el checkbox heredaba el
+   `width: 100%` de los inputs del sistema y quedaba estirado y despegado de su
+   etiqueta —parecía pertenecer a la columna de al lado—, y 42 opciones sueltas
+   son una pared. Agrupadas por familia y como chips se recorren de un vistazo. */
+.esp-grupos { display: flex; flex-direction: column; gap: var(--s-lg); }
+.esp-grupo-titulo {
+  margin: 0 0 var(--s-sm);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.esp-chips { display: flex; flex-wrap: wrap; gap: var(--s-sm); }
+.esp-chip {
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color var(--t-micro), background var(--t-micro), color var(--t-micro);
+}
+.esp-chip:hover { border-color: var(--muted-2); color: var(--ink); }
+.esp-chip.activa {
+  background: var(--teal-tint);
+  border-color: var(--teal);
+  color: var(--teal-ink);
+  font-weight: 500;
+}
+.esp-chip.activa::before { content: '✓'; margin-right: 6px; font-size: 11px; }
+
+/* Una sala desactivada sigue en la lista (los turnos viejos la referencian) pero
+   se lee como lo que es: algo que ya no se ofrece. */
+tr.inactivo td { opacity: 0.55; }
+
+/* En el registro el formulario es angosto y las 42 no pueden ocupar media
+   pantalla: se acotan y scrollean. */
+.esp-chips-scroll {
+  max-height: 168px;
   overflow-y: auto;
   padding: var(--s-sm);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--surface-2);
 }
-.esp-item {
-  display: flex;
-  align-items: center;
-  gap: var(--s-sm);
-  font-size: 13.5px;
-  padding: 3px 4px;
-  border-radius: var(--r-sm);
-  cursor: pointer;
-}
-.esp-item:hover { background: var(--surface); }
-.esp-item input { flex: none; }
-
-/* Una sala desactivada sigue en la lista (los turnos viejos la referencian) pero
-   se lee como lo que es: algo que ya no se ofrece. */
-tr.inactivo td { opacity: 0.55; }

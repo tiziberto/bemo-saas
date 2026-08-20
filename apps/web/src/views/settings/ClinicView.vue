@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import AppShell from '../../components/AppShell.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import UiIcon from '../../components/ui/UiIcon.vue';
 import { api, errMessage } from '../../lib/api';
-import { ROLE_LABEL, TZ } from '../../lib/format';
+import { ROLE_LABEL } from '../../lib/format';
 import type { Professional, Room } from '../../lib/types';
 import { useAuth } from '../../stores/auth';
 import { useUi } from '../../stores/ui';
@@ -18,7 +18,7 @@ const clinicName = ref(auth.clinicName);
 // ── Especialidades del consultorio ──────────────────────────────────────────
 // Define qué puede elegir después cada profesional: no se puede asignar una que
 // la clínica no ofrezca. Por eso se edita acá y no en cada ficha.
-interface Especialidad { id: string; label: string }
+interface Especialidad { id: string; label: string; grupo: string }
 const catalogo = ref<Especialidad[]>([]);
 const elegidas = ref<string[]>([]);
 const guardandoEsp = ref(false);
@@ -30,6 +30,22 @@ async function cargarEspecialidades() {
   ]);
   catalogo.value = todas;
   elegidas.value = mias.map((e) => e.id);
+}
+
+/** Agrupadas por familia: 42 opciones en una sola lista no se pueden recorrer. */
+const porGrupo = computed(() => {
+  const mapa = new Map<string, Especialidad[]>();
+  for (const e of catalogo.value) {
+    if (!mapa.has(e.grupo)) mapa.set(e.grupo, []);
+    mapa.get(e.grupo)!.push(e);
+  }
+  return [...mapa.entries()];
+});
+
+function alternar(id: string) {
+  const i = elegidas.value.indexOf(id);
+  if (i >= 0) elegidas.value.splice(i, 1);
+  else elegidas.value.push(id);
 }
 
 async function guardarEspecialidades() {
@@ -79,11 +95,6 @@ onMounted(async () => {
 
       <div class="panel stack-sm mt-lg">
         <div class="row tight nowrap">
-          <UiIcon name="clock" size="15" style="color:var(--muted)" />
-          <span class="text-sm muted">Zona horaria</span>
-          <span class="text-sm strong" style="margin-left:auto">{{ TZ }}</span>
-        </div>
-        <div class="row tight nowrap">
           <UiIcon name="users" size="15" style="color:var(--muted)" />
           <span class="text-sm muted">Profesionales</span>
           <span class="text-sm strong" style="margin-left:auto">{{ counts.professionals }}</span>
@@ -102,11 +113,21 @@ onMounted(async () => {
         Lo que se atiende acá. Cada profesional elige las suyas de esta lista, así
         que si falta alguna hay que agregarla primero.
       </p>
-      <div class="esp-grid">
-        <label v-for="e in catalogo" :key="e.id" class="esp-item">
-          <input type="checkbox" :value="e.id" v-model="elegidas" />
-          <span>{{ e.label }}</span>
-        </label>
+      <div class="esp-grupos">
+        <div v-for="[grupo, items] in porGrupo" :key="grupo" class="esp-grupo">
+          <p class="esp-grupo-titulo">{{ grupo }}</p>
+          <div class="esp-chips">
+            <button
+              v-for="e in items"
+              :key="e.id"
+              type="button"
+              class="esp-chip"
+              :class="{ activa: elegidas.includes(e.id) }"
+              :aria-pressed="elegidas.includes(e.id)"
+              @click="alternar(e.id)"
+            >{{ e.label }}</button>
+          </div>
+        </div>
       </div>
       <div class="row end mt-md">
         <span class="muted text-xs spacer">{{ elegidas.length }} seleccionadas</span>

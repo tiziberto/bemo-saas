@@ -18,7 +18,15 @@ export class SpecialtiesService {
    */
   async catalogo() {
     const r = await this.db.query(
-      'SELECT id, label FROM specialties ORDER BY sort_order, label',
+      `SELECT s.id, s.label,
+              CASE
+             WHEN s.sort_order < 30 THEN 'Odontología'
+             WHEN s.sort_order < 70 THEN 'Médicas'
+             WHEN s.sort_order < 90 THEN 'Terapias y acompañamiento'
+             ELSE 'Diagnóstico'
+           END AS grupo
+         FROM specialties s
+        ORDER BY s.sort_order, s.label`,
     );
     return r.rows;
   }
@@ -27,7 +35,13 @@ export class SpecialtiesService {
   deLaClinica(user: AuthUser) {
     return this.db.withTenant(this.ctx(user), async (c) => {
       const r = await c.query(
-        `SELECT s.id, s.label
+        `SELECT s.id, s.label,
+                CASE
+             WHEN s.sort_order < 30 THEN 'Odontología'
+             WHEN s.sort_order < 70 THEN 'Médicas'
+             WHEN s.sort_order < 90 THEN 'Terapias y acompañamiento'
+             ELSE 'Diagnóstico'
+           END AS grupo
            FROM clinic_specialties cs
            JOIN specialties s ON s.id = cs.specialty_id
           ORDER BY s.sort_order, s.label`,

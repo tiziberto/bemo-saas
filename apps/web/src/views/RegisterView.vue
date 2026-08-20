@@ -21,6 +21,11 @@ const clinicName = ref('');
 interface Especialidad { id: string; label: string }
 const catalogo = ref<Especialidad[]>([]);
 const especialidades = ref<string[]>([]);
+function alternarEsp(id: string) {
+  const i = especialidades.value.indexOf(id);
+  if (i >= 0) especialidades.value.splice(i, 1);
+  else especialidades.value.push(id);
+}
 onMounted(async () => {
   // El catálogo es público para poder mostrarlo antes de tener sesión.
   catalogo.value = await api<Especialidad[]>('/specialties').catch(() => []);
@@ -90,11 +95,16 @@ async function submit() {
         <div class="field">
           <label class="label">Especialidades <span class="muted text-xs">(opcional)</span></label>
           <p class="muted text-xs mb-sm">Qué se atiende. Después se puede cambiar.</p>
-          <div class="esp-grid" style="max-height:180px">
-            <label v-for="e in catalogo" :key="e.id" class="esp-item">
-              <input type="checkbox" :value="e.id" v-model="especialidades" />
-              <span>{{ e.label }}</span>
-            </label>
+          <div class="esp-chips esp-chips-scroll">
+            <button
+              v-for="e in catalogo"
+              :key="e.id"
+              type="button"
+              class="esp-chip"
+              :class="{ activa: especialidades.includes(e.id) }"
+              :aria-pressed="especialidades.includes(e.id)"
+              @click="alternarEsp(e.id)"
+            >{{ e.label }}</button>
           </div>
         </div>
         <div class="field">

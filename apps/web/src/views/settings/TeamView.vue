@@ -72,6 +72,12 @@ function abrirEsp(u: { id: string; full_name: string; email: string }) {
   espElegidas.value = espDe(u.id).map((e) => e.id);
 }
 
+function alternarEsp(id: string) {
+  const i = espElegidas.value.indexOf(id);
+  if (i >= 0) espElegidas.value.splice(i, 1);
+  else espElegidas.value.push(id);
+}
+
 async function guardarEsp() {
   if (!espUsuario.value) return;
   guardandoEsp.value = true;
@@ -156,11 +162,16 @@ onMounted(load);
       El consultorio todavía no tiene especialidades cargadas.
       Agregalas en Configuración › Clínica y volvé.
     </div>
-    <div v-else class="esp-grid">
-      <label v-for="e in ofrecidas" :key="e.id" class="esp-item">
-        <input type="checkbox" :value="e.id" v-model="espElegidas" />
-        <span>{{ e.label }}</span>
-      </label>
+    <div v-else class="esp-chips">
+      <button
+        v-for="e in ofrecidas"
+        :key="e.id"
+        type="button"
+        class="esp-chip"
+        :class="{ activa: espElegidas.includes(e.id) }"
+        :aria-pressed="espElegidas.includes(e.id)"
+        @click="alternarEsp(e.id)"
+      >{{ e.label }}</button>
     </div>
     <template #footer>
       <button class="btn ghost sm" @click="espUsuario = null">Cancelar</button>
